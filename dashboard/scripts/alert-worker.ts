@@ -1,27 +1,25 @@
 // Standalone alert worker for self-hosted deployments
-// Starts the background scheduler without requiring dashboard traffic
+// Starts the background scheduler as a dedicated process
 
-import { backgroundScheduler } from "@/lib/services/background-scheduler";
-import { serviceManager } from "@/lib/services/service-manager";
-import { initDatabase, syncEnvAgents } from "@/lib/db/database";
+// Use relative imports for easier bundling
+import { backgroundScheduler } from "../lib/services/background-scheduler";
+import { serviceManager } from "../lib/services/service-manager";
+import { initDatabase, syncEnvAgents } from "../lib/db/database";
 
 const globalState = globalThis as unknown as { __alertWorkerStarted?: boolean };
 
 async function startWorker() {
   if (globalState.__alertWorkerStarted) {
-    console.warn(
-      "[AlertWorker] Worker already running, skipping duplicate start",
-    );
+    console.warn("[AlertWorker] Worker already running, skipping duplicate start");
     return;
   }
 
-  const schedulerEnabled = process.env.ENABLE_BACKGROUND_SCHEDULER !== "false";
-  if (!schedulerEnabled) {
-    console.warn(
-      "[AlertWorker] ENABLE_BACKGROUND_SCHEDULER=false, worker will not start",
-    );
-    return;
-  }
+  // Allow overriding interval via ENV for the worker
+  const checkInterval = process.env.ALERT_CHECK_INTERVAL
+    ? parseInt(process.env.ALERT_CHECK_INTERVAL)
+    : 30 * 60 * 1000; // Default 30m
+
+  console.log(`[AlertWorker] Starting Alert Worker Service (Interval: ${checkInterval}ms)`);
 
   globalState.__alertWorkerStarted = true;
 
@@ -31,7 +29,10 @@ async function startWorker() {
   serviceManager.initialize();
 
   console.log("[AlertWorker] Starting background scheduler...");
+
+  // Force start the scheduler
   backgroundScheduler.start();
+
   console.log("[AlertWorker] Worker is running. Press Ctrl+C to exit.");
 }
 

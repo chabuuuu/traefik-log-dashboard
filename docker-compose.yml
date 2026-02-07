@@ -55,6 +55,8 @@ services:
       # Node Environment
       - NODE_ENV=production
       - PORT=3000
+      # Worker disabled in main container
+      - ENABLE_BACKGROUND_SCHEDULER=false
 
       # Display Configuration
       - NEXT_PUBLIC_SHOW_DEMO_PAGE=true
@@ -64,6 +66,30 @@ services:
     depends_on:
       traefik-agent:
         condition: service_healthy
+    networks:
+      - traefik-network
+
+  # Traefik Log Dashboard - ALERT WORKER
+  # Runs the background processing and alerting engine
+  traefik-dashboard-worker:
+    image: hhftechnology/traefik-log-dashboard:dev-dashboard
+    container_name: traefik-log-dashboard-worker
+    restart: unless-stopped
+    user: "1001:1001"
+    # Override the default command to run the worker script
+    command: ["node", "worker.js"]
+    volumes:
+      # MUST share the same data volume as the dashboard for SQLite DB
+      - ./data/dashboard:/app/data
+    environment:
+      - AGENT_API_URL=http://traefik-agent:5000
+      - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
+      - NODE_ENV=production
+      # Configure Alert Check Interval (e.g., 5 minutes)
+      - ALERT_CHECK_INTERVAL=300000
+      - ENABLE_BACKGROUND_SCHEDULER=true
+    depends_on:
+      - traefik-dashboard
     networks:
       - traefik-network
 

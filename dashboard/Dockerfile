@@ -29,6 +29,16 @@ ENV NODE_ENV=production
 
 RUN npm run build
 
+# Build the standalone alert worker bundle
+# Mark native modules as external so they're resolved from node_modules at runtime
+RUN npx esbuild scripts/alert-worker.ts \
+    --bundle \
+    --platform=node \
+    --outfile=.next/standalone/worker.js \
+    --external:better-sqlite3 \
+    --external:fs \
+    --external:path
+
 # ==============================================================================
 # Stage 3: Runner (Production)
 # ==============================================================================

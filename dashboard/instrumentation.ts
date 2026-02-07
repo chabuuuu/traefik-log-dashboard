@@ -30,36 +30,16 @@ export async function register() {
       console.warn('[Instrumentation] Security error filtering enabled');
     }
 
-    const { backgroundScheduler } = await import('./lib/services/background-scheduler');
-    const { serviceManager } = await import('./lib/services/service-manager');
     const { initDatabase, syncEnvAgents } = await import('./lib/db/database');
 
-    // Initialize DB and sync env agents
+    // Initialize DB and sync env agents (required for UI to see data)
     initDatabase();
     syncEnvAgents();
 
-    // Initialize core services (archival, etc.)
-    try {
-      serviceManager.initialize();
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[Instrumentation] Service manager initialized');
-      }
-    } catch (error) {
-      console.error('[Instrumentation] Failed to initialize services:', error);
-    }
-
-    // PERFORMANCE FIX: Allow disabling background scheduler via env var
-    const schedulerEnabled = process.env.ENABLE_BACKGROUND_SCHEDULER !== 'false';
-
-    if (schedulerEnabled) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[Instrumentation] Starting background scheduler (30min interval)...');
-      }
-      backgroundScheduler.start();
-    } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[Instrumentation] Background scheduler DISABLED via ENABLE_BACKGROUND_SCHEDULER=false');
-      }
+    // NOTE: Background scheduler now runs in the dedicated alert worker service.
+    // Skipping scheduler start here prevents dual execution and keeps the web UI light.
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Instrumentation] Background scheduler skipped (handled by worker service)');
     }
   }
 }
