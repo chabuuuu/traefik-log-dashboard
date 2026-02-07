@@ -31,7 +31,7 @@ async function startWorker() {
   console.log("[AlertWorker] Starting background scheduler...");
 
   // Force start the scheduler
-  backgroundScheduler.start();
+  backgroundScheduler.start(checkInterval);
 
   console.log("[AlertWorker] Worker is running. Press Ctrl+C to exit.");
 }

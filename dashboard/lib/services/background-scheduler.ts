@@ -4,8 +4,8 @@ import { parseTraefikLogs } from '../traefik-parser';
 import { serviceManager } from './service-manager';
 import { TraefikLog } from '../types';
 
-// PERFORMANCE FIX: Increased from 5min to 30min to reduce CPU/memory load
-const SCHEDULER_INTERVAL = 30 * 60 * 1000; // 30 minutes
+// Default interval remains 30m, but can be overridden by env or caller
+const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 
 class BackgroundScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -14,12 +14,13 @@ class BackgroundScheduler {
   private lastRunTime: Date | null = null;
   private runCount = 0;
   private errorCount = 0;
+  private intervalMs = DEFAULT_INTERVAL_MS;
 
   /**
    * Start the background scheduler
    * FIX: Ensure scheduler runs immediately on start for Issue #122
    */
-  start() {
+  start(intervalOverrideMs?: number) {
     if (this.intervalId) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('[Scheduler] Already running');
@@ -27,10 +28,20 @@ class BackgroundScheduler {
       return;
     }
 
+    // Resolve interval: caller override -> env -> default
+    const envInterval = process.env.ALERT_CHECK_INTERVAL
+      ? parseInt(process.env.ALERT_CHECK_INTERVAL, 10)
+      : undefined;
+    const resolvedInterval = intervalOverrideMs ?? envInterval ?? DEFAULT_INTERVAL_MS;
+    this.intervalMs =
+      Number.isFinite(resolvedInterval) && resolvedInterval > 0
+        ? resolvedInterval
+        : DEFAULT_INTERVAL_MS;
+
     this.startTime = new Date();
+    console.log(`[Scheduler] Starting background scheduler (interval: ${this.intervalMs}ms)`);
     if (process.env.NODE_ENV === 'development') {
-      console.warn('[Scheduler] Starting background scheduler (30min interval)...');
-      console.warn(`[Scheduler] Initial run will execute immediately, then every ${SCHEDULER_INTERVAL / 1000 / 60} minutes`);
+      console.warn(`[Scheduler] Initial run will execute immediately, then every ${this.intervalMs / 1000 / 60} minutes`);
     }
 
     // FIX for Issue #122: Run immediately on start to ensure alerts trigger without dashboard being open
@@ -44,7 +55,7 @@ class BackgroundScheduler {
       this.runJob().catch(err => {
         console.error('[Scheduler] Error in scheduled run:', err);
       });
-    }, SCHEDULER_INTERVAL);
+    }, this.intervalMs);
 
     if (process.env.NODE_ENV === 'development') {
       console.warn('[Scheduler] Background scheduler started successfully');
@@ -72,7 +83,7 @@ class BackgroundScheduler {
       runCount: this.runCount,
       errorCount: this.errorCount,
       isCurrentlyRunning: this.isRunning,
-      nextRunIn: this.intervalId ? SCHEDULER_INTERVAL : null,
+      nextRunIn: this.intervalId ? this.intervalMs : null,
     };
   }
 
