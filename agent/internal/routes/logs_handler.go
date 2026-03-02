@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -210,14 +211,14 @@ func (h *Handler) HandleStreamAccessLogs(w http.ResponseWriter, r *http.Request)
 			flusher.Flush()
 			return
 		case <-ticker.C:
-			lines, nextPos, err := logs.StreamFromPosition(ctx, h.config.AccessPath, currentPos, h.config.StreamBatchLines, h.config.StreamMaxBytesPerBatch)
+			streamedLogs, nextPos, err := logs.StreamFromPosition(ctx, h.config.AccessPath, currentPos, h.config.StreamBatchLines, h.config.StreamMaxBytesPerBatch)
 			if err != nil && err != context.Canceled {
 				logger.Log.Printf("stream error: %v", err)
 				utils.RespondError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 
-			if len(lines) == 0 {
+			if len(streamedLogs) == 0 {
 				_, _ = w.Write([]byte(": keep-alive\n\n"))
 				flusher.Flush()
 				continue
@@ -230,8 +231,12 @@ func (h *Handler) HandleStreamAccessLogs(w http.ResponseWriter, r *http.Request)
 				maxBytes = 512 * 1024
 			}
 
-			for _, line := range lines {
-				entry := "data: " + line + "\n"
+			for _, log := range streamedLogs {
+				jsonBytes, jsonErr := json.Marshal(log)
+				if jsonErr != nil {
+					continue
+				}
+				entry := "data: " + string(jsonBytes) + "\n"
 				if bytesUsed+len(entry)+1 > maxBytes {
 					logger.Log.Printf("stream batch truncated at %d bytes", bytesUsed)
 					break

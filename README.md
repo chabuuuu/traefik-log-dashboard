@@ -18,6 +18,8 @@
 <img width="1920" height="1440" alt="logs_dashboard" src="https://github.com/user-attachments/assets/ad535e44-d0f7-491e-be2f-de0a409597f6" />
 <img width="1920" height="1440" alt="filter_dashboard" src="https://github.com/user-attachments/assets/8412d9ce-e7df-404a-be66-d8639be0115d" />
 
+image.png
+
 ## Quick Start
 
 Get started in under 5 minutes with Docker Compose:

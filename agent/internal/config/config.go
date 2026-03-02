@@ -37,6 +37,9 @@ type Config struct {
 
 	// State persistence
 	PositionFile string
+
+	// Rate limiting
+	RateLimitRPM int
 }
 
 // Load reads configuration from environment variables.
@@ -61,6 +64,7 @@ func Load() *Config {
 		StreamMaxDurationSec:   getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_DURATION_SEC", 300),
 		StreamMaxBytesPerBatch: getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_BYTES_PER_BATCH", 512*1024),
 		PositionFile:           getEnv("POSITION_FILE", "/data/.position"),
+		RateLimitRPM:           getEnvInt("RATE_LIMIT_RPM", 300),
 	}
 }
 

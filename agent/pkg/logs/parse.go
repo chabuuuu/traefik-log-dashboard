@@ -10,36 +10,49 @@ import (
 )
 
 type TraefikLog struct {
-	ClientAddr          string    `json:"ClientAddr"`
-	ClientHost          string    `json:"ClientHost"`
-	ClientPort          string    `json:"ClientPort"`
-	ClientUsername      string    `json:"ClientUsername"`
-	DownstreamContentSize int64   `json:"DownstreamContentSize"`
-	DownstreamStatus    int       `json:"DownstreamStatus"`
-	Duration            int64     `json:"Duration"`
-	OriginContentSize   int64     `json:"OriginContentSize"`
-	OriginDuration      int64     `json:"OriginDuration"`
-	OriginStatus        int       `json:"OriginStatus"`
-	Overhead            int64     `json:"Overhead"`
-	RequestAddr         string    `json:"RequestAddr"`
-	RequestContentSize  int64     `json:"RequestContentSize"`
-	RequestCount        int       `json:"RequestCount"`
-	RequestHost         string    `json:"RequestHost"`
-	RequestMethod       string    `json:"RequestMethod"`
-	RequestPath         string    `json:"RequestPath"`
-	RequestPort         string    `json:"RequestPort"`
-	RequestProtocol     string    `json:"RequestProtocol"`
-	RequestScheme       string    `json:"RequestScheme"`
-	RetryAttempts       int       `json:"RetryAttempts"`
-	RouterName          string    `json:"RouterName"`
-	ServiceAddr         string    `json:"ServiceAddr"`
-	ServiceName         string    `json:"ServiceName"`
-	ServiceURL          string    `json:"ServiceURL"`
-	StartLocal          time.Time `json:"StartLocal"`
-	StartUTC            time.Time `json:"StartUTC"`
-	EntryPointName      string    `json:"entryPointName"`
-	RequestReferer      string    `json:"RequestReferer"`
-	RequestUserAgent    string    `json:"RequestUserAgent"`
+	ClientAddr            string    `json:"ClientAddr"`
+	ClientHost            string    `json:"ClientHost"`
+	ClientPort            string    `json:"ClientPort"`
+	ClientUsername        string    `json:"ClientUsername"`
+	DownstreamContentSize int64     `json:"DownstreamContentSize"`
+	DownstreamStatus      int       `json:"DownstreamStatus"`
+	Duration              int64     `json:"Duration"`
+	OriginContentSize     int64     `json:"OriginContentSize"`
+	OriginDuration        int64     `json:"OriginDuration"`
+	OriginStatus          int       `json:"OriginStatus"`
+	Overhead              int64     `json:"Overhead"`
+	RequestAddr           string    `json:"RequestAddr"`
+	RequestContentSize    int64     `json:"RequestContentSize"`
+	RequestCount          int       `json:"RequestCount"`
+	RequestHost           string    `json:"RequestHost"`
+	RequestMethod         string    `json:"RequestMethod"`
+	RequestPath           string    `json:"RequestPath"`
+	RequestPort           string    `json:"RequestPort"`
+	RequestProtocol       string    `json:"RequestProtocol"`
+	RequestScheme         string    `json:"RequestScheme"`
+	RetryAttempts         int       `json:"RetryAttempts"`
+	RouterName            string    `json:"RouterName"`
+	ServiceAddr           string    `json:"ServiceAddr"`
+	ServiceName           string    `json:"ServiceName"`
+	ServiceURL            string    `json:"ServiceURL"`
+	StartLocal            time.Time `json:"StartLocal"`
+	StartUTC              time.Time `json:"StartUTC"`
+	EntryPointName        string    `json:"entryPointName"`
+	RequestReferer        string    `json:"RequestReferer,omitempty"`
+	RequestUserAgent      string    `json:"RequestUserAgent,omitempty"`
+
+	// Request headers (Traefik uses "request_" prefix)
+	RequestCFConnectingIP string `json:"request_CF-Connecting-IP,omitempty"`
+	RequestXForwardedFor  string `json:"request_X-Forwarded-For,omitempty"`
+	RequestXRealIP        string `json:"request_X-Real-IP,omitempty"`
+
+	// Response headers
+	DownstreamContentType string `json:"downstream_Content-Type,omitempty"`
+
+	// Log metadata (present in error/info log entries)
+	Level string `json:"level,omitempty"`
+	Msg   string `json:"msg,omitempty"`
+	Time  string `json:"time,omitempty"`
 }
 
 // OPTIMIZATION: Compile regex once at package initialization

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/hhftechnology/traefik-log-dashboard/agent/internal/auth"
@@ -42,6 +44,9 @@ func main() {
 	// Create middleware chain
 	chain := middleware.Chain(
 		middleware.Recovery(),
+		middleware.SecurityHeaders(),
+		middleware.RateLimit(cfg.RateLimitRPM),
+		middleware.MaliciousPatternScanner(),
 		middleware.Logger(),
 		middleware.CORS(middleware.DefaultCORSConfig()),
 	)
@@ -62,15 +67,50 @@ func main() {
 	mux.HandleFunc("/api/system/logs", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemLogs)))
 	mux.HandleFunc("/api/system/resources", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemResources)))
 
-	// Root endpoint
-	mux.HandleFunc("/", middleware.Apply(chain, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ok","service":"traefik-log-dashboard-agent","version":"2.0.0"}`)
-	}))
+	// Notification proxy (with auth) — browsers can't POST to Discord/Telegram directly
+	mux.HandleFunc("/api/notify", middleware.Apply(chain, authenticator.Middleware(handler.HandleNotify)))
+
+	// SPA static file serving or JSON health check fallback
+	distPath := filepath.Join("web", "dist")
+	if info, err := os.Stat(distPath); err == nil && info.IsDir() {
+		logger.Log.Printf("Serving dashboard from %s", distPath)
+		fileServer := http.FileServer(http.Dir(distPath))
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// Let registered /api/ routes handle API requests
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				http.NotFound(w, r)
+				return
+			}
+
+			// Serve static assets with long-lived cache
+			if strings.HasPrefix(r.URL.Path, "/assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+
+			// Check if the requested file exists on disk
+			filePath := filepath.Join(distPath, filepath.Clean(r.URL.Path))
+			if fi, err := os.Stat(filePath); err == nil && !fi.IsDir() {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+
+			// SPA fallback: serve index.html for all other routes
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			http.ServeFile(w, r, filepath.Join(distPath, "index.html"))
+		})
+	} else {
+		// No dashboard build found — serve JSON health check
+		mux.HandleFunc("/", middleware.Apply(chain, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"status":"ok","service":"traefik-log-dashboard-agent","version":"2.0.0"}`)
+		}))
+	}
 
 	// Create HTTP server
 	server := &http.Server{

@@ -4,9 +4,6 @@ node_modules
 .pnp.js
 
 # Build outputs
-.next
-out
-build
 dist
 
 # Debug
@@ -51,3 +48,6 @@ tsconfig.tsbuildinfo
 Dockerfile*
 docker-compose*
 .dockerignore
+
+# OMC
+.omc

@@ -1,3 +1,17 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+
+/* Homepage Dark Mode Design Tokens */
+:root {
+  --home-bg: #050505;
+  --home-text-heading: rgba(255, 255, 255, 0.9);
+  --home-text-body: rgba(255, 255, 255, 0.6);
+  --home-text-muted: rgba(255, 255, 255, 0.4);
+  --home-border-light: rgba(255, 255, 255, 0.1);
+  --home-border-medium: rgba(255, 255, 255, 0.15);
+  --home-border-strong: rgba(255, 255, 255, 0.25);
+  --home-fill-subtle: rgba(255, 255, 255, 0.02);
+  --home-fill-light: rgba(255, 255, 255, 0.04);
+  --home-fill-medium: rgba(255, 255, 255, 0.05);
+}

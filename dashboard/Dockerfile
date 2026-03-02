@@ -1,91 +1,44 @@
-# ==============================================================================
-# Stage 1: Dependencies
-# ==============================================================================
-FROM node:20-alpine AS deps
+# Stage 1: Build the Vite application
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Copy package files first for better layer caching
+COPY package.json package-lock.json ./
 
-COPY package.json package-lock.json* ./
-RUN npm ci && npm cache clean --force
+# Install dependencies
+RUN npm ci
 
-# ==============================================================================
-# Stage 2: Builder
-# ==============================================================================
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Install build dependencies for native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++
-
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source code
 COPY . .
 
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
+# Accept build-time base path (defaults to /)
+ARG VITE_BASE_PATH=/
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 
+# Build the application
 RUN npm run build
 
-# Build the standalone alert worker bundle
-# Mark native modules as external so they're resolved from node_modules at runtime
-RUN npx esbuild scripts/alert-worker.ts \
-    --bundle \
-    --platform=node \
-    --outfile=.next/standalone/worker.js \
-    --external:better-sqlite3 \
-    --external:fs \
-    --external:path
+# Stage 2: Serve with nginx
+FROM nginx:alpine
 
-# ==============================================================================
-# Stage 3: Runner (Production)
-# ==============================================================================
-FROM node:20-alpine AS runner
+# Install envsubst (part of gettext)
+RUN apk add --no-cache gettext
 
-WORKDIR /app
+# Copy built assets from build stage
+COPY --from=build /app/dist /usr/share/nginx/html
 
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+# Copy nginx config template (processed by docker-entrypoint.sh, not nginx auto-templates)
+COPY nginx.conf /etc/nginx/nginx.conf.template
 
-# Install only runtime dependencies
-RUN apk add --no-cache ca-certificates
-
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nodejs
-
-# Copy ONLY the standalone build (includes all dependencies)
-COPY --from=builder --chown=nodejs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nodejs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nodejs:nodejs /app/public ./public
-
-# GeoIP: geolite2-redist downloads databases on first use (lazy loading)
-# Create geoip directory for runtime database storage
-RUN mkdir -p /app/geoip && chown nodejs:nodejs /app/geoip
-
-# CRITICAL: Copy geolite2-redist package from builder since standalone doesn't include it fully
-# This package needs its full structure to download GeoLite2 databases at runtime
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules/geolite2-redist ./node_modules/geolite2-redist
-
-# Create the directories geolite2-redist needs for database downloads
-RUN mkdir -p /app/node_modules/geolite2-redist/dbs-tmp && \
-    mkdir -p /app/node_modules/geolite2-redist/dbs && \
-    chown -R nodejs:nodejs /app/node_modules/geolite2-redist
+# Remove default nginx config
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 # Copy entrypoint script
-COPY --chown=nodejs:nodejs docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data && chown -R nodejs:nodejs /app/data
+EXPOSE 80
 
-USER nodejs
-
-EXPOSE 3000
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "server.js"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]

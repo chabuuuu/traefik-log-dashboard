@@ -234,7 +234,7 @@ func TestMain(m *testing.M) {
 	// Run tests
 	code := m.Run()
 
-	// Cleanup: Remove test log files
+	// Cleanup: Remove test files
 	os.Remove("/tmp/test-access.log")
 	os.Remove("/tmp/test-error.log")
 

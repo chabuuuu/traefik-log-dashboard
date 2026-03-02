@@ -1,25 +1,50 @@
 #!/bin/sh
 set -e
 
-# Create data directory if it doesn't exist
-mkdir -p /app/data 2>/dev/null || true
+# Default agent URL if not provided
+AGENT_URL="${AGENT_URL:-http://localhost:5000}"
 
-# Verify geolite2-redist directories exist and are writable
-# Note: Main permission fix happens in Dockerfile with chown
-# This is a fallback check for runtime issues
-if [ -d "/app/node_modules/geolite2-redist" ]; then
-  # Create required directories if they don't exist
-  mkdir -p /app/node_modules/geolite2-redist/dbs-tmp 2>/dev/null || true
-  mkdir -p /app/node_modules/geolite2-redist/dbs 2>/dev/null || true
+# Run envsubst on nginx config template
+envsubst '${AGENT_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf
 
-  # Test write permission
-  if ! touch /app/node_modules/geolite2-redist/dbs-tmp/.write-test 2>/dev/null; then
-    echo "WARNING: geolite2-redist/dbs-tmp is not writable. GeoIP lookups may fail."
-    echo "This is usually a Docker permission issue. Rebuild the image to fix."
-  else
-    rm -f /app/node_modules/geolite2-redist/dbs-tmp/.write-test
-  fi
+# Inject runtime config into index.html
+# This allows the dashboard to discover agent URL/token without rebuilding
+INDEX_FILE="/usr/share/nginx/html/index.html"
+if [ -f "$INDEX_FILE" ]; then
+    RUNTIME_CONFIG="$(cat <<JSONEOF
+{
+  "basePath":"${BASE_PATH:-}",
+  "baseDomain":"${BASE_DOMAIN:-}",
+  "showDemoPage":${SHOW_DEMO_PAGE:-true},
+  "refreshIntervalMs":${DASHBOARD_REFRESH_INTERVAL_MS:-5000},
+  "maxLogsDisplay":${DASHBOARD_MAX_LOGS_DISPLAY:-1000},
+  "density":"${DASHBOARD_DENSITY:-comfortable}",
+  "defaultAgentUrl":"${AGENT_URL}",
+  "defaultAgentToken":"${AGENT_API_TOKEN:-}"
+}
+JSONEOF
+)"
+    # Collapse to single line for safe injection into <script> tag
+    RUNTIME_CONFIG_LINE="$(echo "$RUNTIME_CONFIG" | tr -d '\n')"
+    sed -i "s|</head>|<script>window.__DASHBOARD_CONFIG__=${RUNTIME_CONFIG_LINE};</script></head>|" "$INDEX_FILE"
 fi
 
-# Execute the command
+# Generate /api/dashboard-config as a static JSON file served by nginx
+CONFIG_DIR="/usr/share/nginx/html/api"
+mkdir -p "$CONFIG_DIR"
+cat > "$CONFIG_DIR/dashboard-config" <<EOF
+{
+  "basePath": "${BASE_PATH:-}",
+  "baseDomain": "${BASE_DOMAIN:-}",
+  "showDemoPage": ${SHOW_DEMO_PAGE:-true},
+  "refreshIntervalMs": ${DASHBOARD_REFRESH_INTERVAL_MS:-5000},
+  "maxLogsDisplay": ${DASHBOARD_MAX_LOGS_DISPLAY:-1000},
+  "chartPalette": ["var(--chart-1)","var(--chart-2)","var(--chart-3)","var(--chart-4)","var(--chart-5)"],
+  "density": "${DASHBOARD_DENSITY:-comfortable}",
+  "themeTokens": {},
+  "defaultAgentUrl": "${AGENT_URL}",
+  "defaultAgentToken": "${AGENT_API_TOKEN:-}"
+}
+EOF
+
 exec "$@"

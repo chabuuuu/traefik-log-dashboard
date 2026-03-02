@@ -20,8 +20,6 @@ services:
       # System Monitoring
       - TRAEFIK_LOG_DASHBOARD_SYSTEM_MONITORING=true
 
-      # REFACTOR: GeoIP removed - Dashboard handles GeoIP locally
-
       # Log Format
       - TRAEFIK_LOG_DASHBOARD_LOG_FORMAT=json
 
@@ -29,67 +27,27 @@ services:
       - PORT=5000
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/logs/status"]
-      interval: 2m  # PERFORMANCE FIX: Increased from 30s to 2min to reduce load
+      interval: 2m
       timeout: 10s
       retries: 3
-      start_period: 30s  # Increased to allow agent to fully start
+      start_period: 30s
     networks:
       - traefik-network
 
-  # Traefik Log Dashboard - Next.js web UI
+  # Traefik Log Dashboard - Vite SPA served by nginx
   traefik-dashboard:
     image: hhftechnology/traefik-log-dashboard:dev-dashboard
     container_name: traefik-log-dashboard
     restart: unless-stopped
-    user: "1001:1001"
     ports:
-      - "3000:3000"
-    volumes:
-      - ./data/dashboard:/app/data
+      - "3000:80"
     environment:
-      # Agent Configuration - REPLACE WITH YOUR TOKEN
-      - AGENT_API_URL=http://traefik-agent:5000
+      # Agent connection (used by nginx proxy and runtime config injection)
+      - AGENT_URL=http://traefik-agent:5000
       - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
-      - AGENT_NAME=Default Agent
-
-      # Node Environment
-      - NODE_ENV=production
-      - PORT=3000
-      # Worker disabled in main container
-      - ENABLE_BACKGROUND_SCHEDULER=false
-
-      # Display Configuration
-      - NEXT_PUBLIC_SHOW_DEMO_PAGE=true
-      - NEXT_PUBLIC_MAX_LOGS_DISPLAY=500
-
-      # GeoIP: Auto-downloaded by geolite2-redist, no config needed
     depends_on:
       traefik-agent:
         condition: service_healthy
-    networks:
-      - traefik-network
-
-  # Traefik Log Dashboard - ALERT WORKER
-  # Runs the background processing and alerting engine
-  traefik-dashboard-worker:
-    image: hhftechnology/traefik-log-dashboard:dev-dashboard
-    container_name: traefik-log-dashboard-worker
-    restart: unless-stopped
-    user: "1001:1001"
-    # Override the default command to run the worker script
-    command: ["node", "worker.js"]
-    volumes:
-      # MUST share the same data volume as the dashboard for SQLite DB
-      - ./data/dashboard:/app/data
-    environment:
-      - AGENT_API_URL=http://traefik-agent:5000
-      - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
-      - NODE_ENV=production
-      # Configure Alert Check Interval (e.g., 5 minutes)
-      - ALERT_CHECK_INTERVAL=300000
-      - ENABLE_BACKGROUND_SCHEDULER=true
-    depends_on:
-      - traefik-dashboard
     networks:
       - traefik-network
 

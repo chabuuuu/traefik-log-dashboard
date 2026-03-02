@@ -1,6 +1,6 @@
 # Makefile for traefik-log-dashboard agent
 
-.PHONY: all build test clean run
+.PHONY: all build test clean run build-dashboard build-all
 
 all: build
 
@@ -20,3 +20,13 @@ clean:
 run: build
 	@echo "Running agent..."
 	./bin/agent
+
+build-dashboard:
+	@echo "Building dashboard..."
+	cd ../dashboard && npm run build
+	@echo "Copying dashboard dist to web/dist..."
+	rm -rf web/dist
+	mkdir -p web/dist
+	cp -r ../dashboard/dist/* web/dist/
+
+build-all: build-dashboard build
