@@ -19,20 +19,15 @@ ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 # Build the application
 RUN npm run build
 
-# Stage 2: Serve with nginx
-FROM nginx:alpine
+# Stage 2: Serve with a lightweight static file server
+FROM node:20-alpine
 
-# Install envsubst (part of gettext)
-RUN apk add --no-cache gettext
+RUN npm install -g serve@latest
+
+WORKDIR /app
 
 # Copy built assets from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy nginx config template (processed by docker-entrypoint.sh, not nginx auto-templates)
-COPY nginx.conf /etc/nginx/nginx.conf.template
-
-# Remove default nginx config
-RUN rm -f /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /app/dist
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
@@ -41,4 +36,4 @@ RUN chmod +x /docker-entrypoint.sh
 EXPOSE 80
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["serve", "-s", "/app/dist", "-l", "80"]

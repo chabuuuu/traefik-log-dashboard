@@ -34,7 +34,7 @@ services:
     networks:
       - traefik-network
 
-  # Traefik Log Dashboard - Vite SPA served by nginx
+  # Traefik Log Dashboard - Vite SPA
   traefik-dashboard:
     image: hhftechnology/traefik-log-dashboard:dev-dashboard
     container_name: traefik-log-dashboard
@@ -42,7 +42,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      # Agent connection (used by nginx proxy and runtime config injection)
+      # Default agent connection (injected into runtime config)
       - AGENT_URL=http://traefik-agent:5000
       - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
     depends_on:
