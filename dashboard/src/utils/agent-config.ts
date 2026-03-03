@@ -9,7 +9,7 @@ import { getRuntimeConfig } from './config/runtime-config';
 export function getAgentConfig() {
   const runtime = getRuntimeConfig();
   return {
-    url: runtime.defaultAgentUrl || import.meta.env.VITE_AGENT_API_URL || 'http://traefik-agent:5000',
-    token: runtime.defaultAgentToken || import.meta.env.VITE_AGENT_API_TOKEN || '',
+    url: runtime.defaultAgentUrl || 'http://traefik-agent:5000',
+    token: runtime.defaultAgentToken || '',
   };
 }

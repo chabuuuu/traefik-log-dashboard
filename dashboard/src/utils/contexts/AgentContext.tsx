@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { Agent } from '../types/agent';
 import { toast } from 'sonner';
 import { agentStore } from '../stores/agent-store';
+import { apiClient } from '../api-client';
 
 interface AgentContextType {
   agents: Agent[];
@@ -27,6 +28,16 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setAgents(agentStore.getAgents());
     setSelectedAgent(agentStore.getSelectedAgent());
   }, []);
+
+  // Keep shared API client aligned with the active agent so all hooks
+  // (logs/system/location) use the selected endpoint and auth token.
+  useEffect(() => {
+    if (!selectedAgent) {
+      return;
+    }
+    apiClient.setBaseURL(selectedAgent.url);
+    apiClient.setAuthToken(selectedAgent.token || '');
+  }, [selectedAgent]);
 
   const refreshAgents = useCallback(() => {
     setAgents(agentStore.getAgents());

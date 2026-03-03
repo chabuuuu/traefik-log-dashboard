@@ -43,8 +43,8 @@ export class AgentConfigManager {
       name: 'Default Agent',
       // FIX: Use traefik-agent:5000 for Docker internal network
       // This matches the service name in docker-compose.yml
-      url: runtime.defaultAgentUrl || import.meta.env.VITE_AGENT_API_URL || 'http://traefik-agent:5000',
-      token: runtime.defaultAgentToken || import.meta.env.VITE_AGENT_API_TOKEN || '',
+      url: runtime.defaultAgentUrl || 'http://traefik-agent:5000',
+      token: runtime.defaultAgentToken || '',
       location: 'on-site',
       number: 1,
       status: 'checking',

@@ -119,7 +119,7 @@ export default function WebhookFormModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-red-200 dark:border-red-800">
+      <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-border">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <h2 className="text-2xl font-bold text-foreground">
@@ -127,7 +127,7 @@ export default function WebhookFormModal({
           </h2>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            className="text-muted-foreground hover:text-primary transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -138,26 +138,26 @@ export default function WebhookFormModal({
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Name <span className="text-red-500 dark:text-red-400">*</span>
+              Name <span className="text-destructive">*</span>
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={e => handleInputChange('name', e.target.value)}
               placeholder="e.g., Production Alerts"
-              className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 bg-card text-foreground ${
-                errors.name ? 'border-red-500 dark:border-red-400' : 'border-red-200 dark:border-red-800'
+              className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground ${
+                errors.name ? 'border-destructive' : 'border-border'
               }`}
             />
             {errors.name && (
-              <p className="mt-1 text-sm text-red-500 dark:text-red-400">{errors.name}</p>
+              <p className="mt-1 text-sm text-destructive">{errors.name}</p>
             )}
           </div>
 
           {/* Type */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Type <span className="text-red-500 dark:text-red-400">*</span>
+              Type <span className="text-destructive">*</span>
             </label>
             <div className="flex gap-4">
               <label className="flex items-center cursor-pointer">
@@ -186,7 +186,7 @@ export default function WebhookFormModal({
           {/* URL */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Webhook URL <span className="text-red-500 dark:text-red-400">*</span>
+              Webhook URL <span className="text-destructive">*</span>
             </label>
             <input
               type="url"
@@ -197,12 +197,12 @@ export default function WebhookFormModal({
                   ? 'https://discord.com/api/webhooks/...'
                   : 'https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>'
               }
-              className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 font-mono text-sm bg-card text-foreground ${
-                errors.url ? 'border-red-500 dark:border-red-400' : 'border-red-200 dark:border-red-800'
+              className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm bg-card text-foreground ${
+                errors.url ? 'border-destructive' : 'border-border'
               }`}
             />
             {errors.url && (
-              <p className="mt-1 text-sm text-red-500 dark:text-red-400">{errors.url}</p>
+              <p className="mt-1 text-sm text-destructive">{errors.url}</p>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               {formData.type === 'discord' ? (
@@ -227,7 +227,7 @@ export default function WebhookFormModal({
               onChange={e => handleInputChange('description', e.target.value)}
               placeholder="e.g., Sends alerts to #production-alerts channel"
               rows={3}
-              className="w-full px-3 py-2 border-2 border-red-200 dark:border-red-800 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 bg-card text-foreground"
+              className="w-full px-3 py-2 border-2 border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
             />
           </div>
 
@@ -238,7 +238,7 @@ export default function WebhookFormModal({
               id="enabled"
               checked={formData.enabled}
               onChange={e => handleInputChange('enabled', e.target.checked)}
-              className="mr-2 h-4 w-4 text-red-600 border-red-300 rounded focus:ring-red-500"
+              className="mr-2 h-4 w-4 text-primary border-primary/40 rounded focus:ring-primary"
             />
             <label htmlFor="enabled" className="text-sm font-medium text-foreground">
               Enable webhook immediately
@@ -252,7 +252,7 @@ export default function WebhookFormModal({
               variant="outline"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 border-2 border-red-200 dark:border-red-800 hover:border-red-500 dark:hover:border-red-400"
+              className="flex-1 border-2 border-border hover:border-primary"
             >
               Cancel
             </Button>

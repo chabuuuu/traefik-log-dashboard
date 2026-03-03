@@ -4,6 +4,7 @@ import { enrichLogsWithGeoLocation } from '@/utils/location';
 import { apiClient } from '@/utils/api-client';
 import { useTabVisibility } from './useTabVisibility';
 import { buildLogKey, createLogBuffer, dedupeLogs } from '@/utils/utils/log-batching';
+import { getNextLogCursor } from '@/utils/utils/log-cursor';
 import { useConfig } from '@/utils/contexts/ConfigContext';
 
 const STREAM_BATCH_SIZE = 250;
@@ -134,8 +135,12 @@ export function useLogFetcher() {
           setLoading(false);
         }
 
-        if (data.positions && data.positions.length > 0 && typeof data.positions[0].Position === 'number') {
-          positionRef.current = data.positions[0].Position;
+        const nextPosition = getNextLogCursor(
+          data.positions as Array<{ position?: unknown; Position?: unknown }> | undefined
+        );
+
+        if (typeof nextPosition === 'number') {
+          positionRef.current = nextPosition;
         }
 
         pollDelayRef.current = config.refreshIntervalMs;

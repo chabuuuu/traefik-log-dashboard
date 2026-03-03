@@ -25,21 +25,21 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
     <div className="space-y-6">
       {/* Backend Health Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+        <Card className="bg-success-muted border-success/30">
           <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-green-600">{healthyBackends}</div>
+            <div className="text-3xl font-bold text-success">{healthyBackends}</div>
             <div className="text-sm text-muted-foreground mt-1">Healthy</div>
           </CardContent>
         </Card>
-        <Card className="bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
+        <Card className="bg-warning-muted border-warning/30">
           <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-yellow-600">{warningBackends}</div>
+            <div className="text-3xl font-bold text-warning">{warningBackends}</div>
             <div className="text-sm text-muted-foreground mt-1">Warning</div>
           </CardContent>
         </Card>
-        <Card className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
+        <Card className="bg-destructive-muted border-destructive/30">
           <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-red-600">{criticalBackends}</div>
+            <div className="text-3xl font-bold text-destructive">{criticalBackends}</div>
             <div className="text-sm text-muted-foreground mt-1">Critical</div>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
                   <Progress value={(service.requests / maxServiceCount) * 100} className="h-1.5" />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Avg: {service.avgDuration.toFixed(0)}ms</span>
-                    <span className={service.errorRate > 5 ? 'text-red-600' : ''}>
+                    <span className={service.errorRate > 5 ? 'text-destructive' : ''}>
                       Error: {service.errorRate.toFixed(1)}%
                     </span>
                   </div>
@@ -117,10 +117,10 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {metrics.backends.map((backend, idx) => {
               const status = backend.errorRate < 5
-                ? { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-950', border: 'border-green-200 dark:border-green-800', label: 'Healthy' }
+                ? { icon: CheckCircle, color: 'text-success', bg: 'bg-success-muted', border: 'border-success/30', label: 'Healthy' }
                 : backend.errorRate < 10
-                  ? { icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-50 dark:bg-yellow-950', border: 'border-yellow-200 dark:border-yellow-800', label: 'Warning' }
-                  : { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-950', border: 'border-red-200 dark:border-red-800', label: 'Critical' };
+                  ? { icon: AlertCircle, color: 'text-warning', bg: 'bg-warning-muted', border: 'border-warning/30', label: 'Warning' }
+                  : { icon: AlertCircle, color: 'text-destructive', bg: 'bg-destructive-muted', border: 'border-destructive/30', label: 'Critical' };
               const StatusIcon = status.icon;
               const totalRequests = metrics.backends.reduce((sum, b) => sum + b.requests, 0);
               const percentage = totalRequests > 0 ? (backend.requests / totalRequests) * 100 : 0;

@@ -65,29 +65,29 @@ export default function AgentHealthDashboard() {
 
   const getStatusBadge = (isOnline: boolean) => {
     return isOnline ? (
-      <Badge className="bg-green-500 text-white">Online</Badge>
+      <Badge className="bg-success text-success-foreground">Online</Badge>
     ) : (
-      <Badge className="bg-red-500 text-white">Offline</Badge>
+      <Badge className="bg-destructive text-destructive-foreground">Offline</Badge>
     );
   };
 
   const getUptimeColor = (uptime: number) => {
-    if (uptime >= 99) return 'text-green-600 dark:text-green-400';
-    if (uptime >= 95) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-red-600 dark:text-red-400';
+    if (uptime >= 99) return 'text-success';
+    if (uptime >= 95) return 'text-warning';
+    return 'text-destructive';
   };
 
   const getResponseTimeColor = (responseTime: number) => {
-    if (responseTime < 1000) return 'text-green-600 dark:text-green-400';
-    if (responseTime < 3000) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-red-600 dark:text-red-400';
+    if (responseTime < 1000) return 'text-success';
+    if (responseTime < 3000) return 'text-warning';
+    return 'text-destructive';
   };
 
   return (
     <div className="space-y-6">
       {/* Overall Health Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg p-6 shadow-sm hover:border-red-300 dark:hover:border-red-700 transition-colors">
+        <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:border-primary/50 transition-colors">
           <div className="flex items-center justify-between mb-2">
             <Server className="w-5 h-5 text-muted-foreground" />
             <Badge variant="secondary">{overallHealth.totalAgents}</Badge>
@@ -98,10 +98,10 @@ export default function AgentHealthDashboard() {
           <div className="text-sm text-muted-foreground">Total Agents</div>
         </div>
 
-        <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg p-6 shadow-sm hover:border-red-300 dark:hover:border-red-700 transition-colors">
+        <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:border-primary/50 transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
-            <Badge className="bg-green-500 text-white">{overallHealth.onlineAgents}</Badge>
+            <CheckCircle2 className="w-5 h-5 text-success" />
+            <Badge className="bg-success text-success-foreground">{overallHealth.onlineAgents}</Badge>
           </div>
           <div className="text-2xl font-bold text-foreground mb-1">
             {overallHealth.onlineAgents}
@@ -109,10 +109,10 @@ export default function AgentHealthDashboard() {
           <div className="text-sm text-muted-foreground">Online</div>
         </div>
 
-        <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg p-6 shadow-sm hover:border-red-300 dark:hover:border-red-700 transition-colors">
+        <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:border-primary/50 transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-            <Badge className="bg-red-500 text-white">{overallHealth.offlineAgents}</Badge>
+            <XCircle className="w-5 h-5 text-destructive" />
+            <Badge className="bg-destructive text-destructive-foreground">{overallHealth.offlineAgents}</Badge>
           </div>
           <div className="text-2xl font-bold text-foreground mb-1">
             {overallHealth.offlineAgents}
@@ -120,9 +120,9 @@ export default function AgentHealthDashboard() {
           <div className="text-sm text-muted-foreground">Offline</div>
         </div>
 
-        <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg p-6 shadow-sm hover:border-red-300 dark:hover:border-red-700 transition-colors">
+        <div className="bg-card border border-border rounded-lg p-6 shadow-sm hover:border-primary/50 transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <TrendingUp className="w-5 h-5 text-primary" />
             <Badge variant="secondary">{overallHealth.overallUptime.toFixed(1)}%</Badge>
           </div>
           <div className="text-2xl font-bold text-foreground mb-1">
@@ -143,7 +143,7 @@ export default function AgentHealthDashboard() {
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded border-input text-red-600 focus:ring-red-500"
+              className="rounded border-input text-primary focus:ring-primary"
             />
             Auto-refresh (5min)
           </label>
@@ -162,21 +162,21 @@ export default function AgentHealthDashboard() {
 
       {/* Unhealthy Agents Alert */}
       {unhealthyAgents.length > 0 && (
-        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div className="bg-destructive-muted border border-destructive/30 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-destructive mt-0.5" />
             <div>
-              <h4 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+              <h4 className="font-semibold text-destructive mb-1">
                 {unhealthyAgents.length} Unhealthy Agent(s) Detected
               </h4>
-              <p className="text-sm text-red-700 dark:text-red-300">
+              <p className="text-sm text-destructive/80">
                 The following agents are experiencing issues:
               </p>
               <ul className="mt-2 space-y-1">
                 {unhealthyAgents.map((metric) => {
                   const agent = agents.find(a => a.id === metric.agentId);
                   return (
-                    <li key={metric.agentId} className="text-sm text-red-700 dark:text-red-300">
+                    <li key={metric.agentId} className="text-sm text-destructive/80">
                       • <span className="font-medium">{agent?.name || metric.agentId}</span>
                       {!metric.isOnline && ' - Offline'}
                       {metric.consecutiveFailures > 0 && ` - ${metric.consecutiveFailures} consecutive failures`}
@@ -191,7 +191,7 @@ export default function AgentHealthDashboard() {
       )}
 
       {/* Agent Details Table */}
-      <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg overflow-hidden shadow-sm">
+      <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted border-b border-border">
@@ -283,7 +283,7 @@ export default function AgentHealthDashboard() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {metric ? (
-                          <span className={`text-sm font-medium ${metric.consecutiveFailures > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                          <span className={`text-sm font-medium ${metric.consecutiveFailures > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                             {metric.consecutiveFailures}
                           </span>
                         ) : (
@@ -301,7 +301,7 @@ export default function AgentHealthDashboard() {
 
       {/* Average Response Time Chart */}
       {agents.length > 0 && Object.keys(healthMetrics).length > 0 && (
-        <div className="bg-card border border-red-200 dark:border-red-800 rounded-lg p-6 shadow-sm">
+        <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
           <h4 className="text-lg font-semibold text-foreground mb-4">
             Average Response Time: {overallHealth.averageResponseTime}ms
           </h4>
@@ -330,10 +330,10 @@ export default function AgentHealthDashboard() {
                     <div
                       className={`h-2 rounded-full transition-all ${
                         metric.responseTime < 1000
-                          ? 'bg-green-500'
+                          ? 'bg-success'
                           : metric.responseTime < 3000
-                          ? 'bg-yellow-500'
-                          : 'bg-red-500'
+                          ? 'bg-warning'
+                          : 'bg-destructive'
                       }`}
                       style={{ width: `${percentage}%` }}
                     />

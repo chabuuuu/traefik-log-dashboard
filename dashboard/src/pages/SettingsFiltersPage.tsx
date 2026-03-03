@@ -228,7 +228,7 @@ export default function FilterSettingsPage() {
             </div>
             <div className="flex items-center gap-3">
               {saved && (
-                <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700">
+                <Badge variant="secondary" className="bg-success-muted text-success border-success/30">
                   <Save className="w-3 h-3 mr-1" />
                   Saved
                 </Badge>
@@ -335,7 +335,7 @@ export default function FilterSettingsPage() {
                     settings.excludedIPs.map((ip) => (
                       <div
                         key={ip}
-                        className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg"
+                        className="flex items-center justify-between p-2 bg-destructive-muted border border-destructive/30 rounded-lg"
                       >
                         <span className="text-sm font-mono text-foreground">{ip}</span>
                         <Button
@@ -344,7 +344,7 @@ export default function FilterSettingsPage() {
                           size="sm"
                           className="h-6 w-6 p-0"
                         >
-                          <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <X className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>
                     ))
@@ -482,7 +482,7 @@ export default function FilterSettingsPage() {
                   {settings.proxySettings.customHeaders.map((header) => (
                     <div
                       key={header}
-                      className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg"
+                      className="flex items-center justify-between p-2 bg-info-muted border border-info/30 rounded-lg"
                     >
                       <span className="text-sm font-mono text-foreground">{header}</span>
                       <Button
@@ -491,7 +491,7 @@ export default function FilterSettingsPage() {
                         size="sm"
                         className="h-6 w-6 p-0"
                       >
-                        <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        <X className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
                   ))}
@@ -536,7 +536,7 @@ export default function FilterSettingsPage() {
                   settings.excludeStatusCodes.map((code) => (
                     <div
                       key={code}
-                      className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg"
+                      className="flex items-center justify-between p-2 bg-destructive-muted border border-destructive/30 rounded-lg"
                     >
                       <span className="text-sm font-mono text-foreground">{code}</span>
                       <Button
@@ -545,7 +545,7 @@ export default function FilterSettingsPage() {
                         size="sm"
                         className="h-6 w-6 p-0"
                       >
-                        <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        <X className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
                   ))
@@ -612,7 +612,7 @@ export default function FilterSettingsPage() {
                     settings.excludePaths.map((path) => (
                       <div
                         key={path}
-                        className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg"
+                        className="flex items-center justify-between p-2 bg-destructive-muted border border-destructive/30 rounded-lg"
                       >
                         <span className="text-sm font-mono text-foreground">{path}</span>
                         <Button
@@ -621,7 +621,7 @@ export default function FilterSettingsPage() {
                           size="sm"
                           className="h-6 w-6 p-0"
                         >
-                          <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <X className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>
                     ))
@@ -804,7 +804,7 @@ export default function FilterSettingsPage() {
                               variant={condition.enabled ? 'default' : 'secondary'}
                               className={
                                 condition.enabled
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700'
+                                  ? 'bg-success-muted text-success border-success/30'
                                   : ''
                               }
                             >
@@ -814,8 +814,8 @@ export default function FilterSettingsPage() {
                               variant="outline"
                               className={
                                 condition.mode === 'include'
-                                  ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                                  : 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
+                                  ? 'bg-info-muted text-info border-info/30'
+                                  : 'bg-destructive-muted text-destructive border-destructive/30'
                               }
                             >
                               {condition.mode === 'include' ? 'INCLUDE' : 'EXCLUDE'}
@@ -861,7 +861,7 @@ export default function FilterSettingsPage() {
                             size="sm"
                             className="h-8 w-8 p-0"
                           >
-                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
                       </div>
@@ -877,7 +877,7 @@ export default function FilterSettingsPage() {
         <Card className="mt-6">
           <CardContent className="py-6">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-info flex-shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-semibold text-foreground mb-1">
                   How Filters Work

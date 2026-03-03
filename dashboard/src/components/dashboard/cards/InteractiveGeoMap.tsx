@@ -119,18 +119,18 @@ export default function InteractiveGeoMap({ locations }: Props) {
 
   const getHeatColor = (count: number): string => {
     const intensity = (count / maxCount) * 100;
-    if (intensity > 75) return 'bg-red-600 border-red-700';
-    if (intensity > 50) return 'bg-red-500 border-red-600';
-    if (intensity > 25) return 'bg-red-400 border-red-500';
-    return 'bg-red-300 border-red-400';
+    if (intensity > 75) return 'bg-primary border-primary';
+    if (intensity > 50) return 'bg-primary/80 border-primary/90';
+    if (intensity > 25) return 'bg-primary/60 border-primary/70';
+    return 'bg-primary/40 border-primary/50';
   };
 
   const getTextColor = (count: number): string => {
     const intensity = (count / maxCount) * 100;
-    if (intensity > 75) return 'text-red-600';
-    if (intensity > 50) return 'text-red-500';
-    if (intensity > 25) return 'text-red-400';
-    return 'text-red-300';
+    if (intensity > 75) return 'text-primary';
+    if (intensity > 50) return 'text-primary/80';
+    if (intensity > 25) return 'text-primary/60';
+    return 'text-primary/40';
   };
 
   // Markers for locations with coordinates
@@ -172,8 +172,8 @@ export default function InteractiveGeoMap({ locations }: Props) {
           <div className="text-primary"><Globe className="w-5 h-5" /></div>
         </CardHeader>
         <CardContent>
-          <div className="w-full h-[350px] border rounded-lg overflow-hidden bg-slate-50 dark:bg-neutral-900 flex items-center justify-center">
-            <div className="text-center text-gray-500">
+          <div className="w-full h-[350px] border rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
               <Globe className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>No geographic data available yet</p>
             </div>
@@ -187,7 +187,7 @@ export default function InteractiveGeoMap({ locations }: Props) {
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-semibold uppercase tracking-wide">Geographic Distribution</CardTitle>
-        <div className="text-primary"><Globe className="w-5 h-5 text-red-600" /></div>
+        <div className="text-primary"><Globe className="w-5 h-5" /></div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -198,7 +198,7 @@ export default function InteractiveGeoMap({ locations }: Props) {
               <MapZoomControl />
               <MapMarkerClusterGroup
                 icon={(count) => (
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500 text-white font-bold text-sm border-2 border-white shadow-lg">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground font-bold text-sm border-2 border-white shadow-lg">
                     {count}
                   </div>
                 )}
@@ -210,7 +210,7 @@ export default function InteractiveGeoMap({ locations }: Props) {
                     icon={
                       <div
                         className={`flex items-center justify-center w-8 h-8 rounded-full border-2 border-white shadow-lg cursor-pointer transition-transform hover:scale-110 ${
-                          selectedCountry === marker.id ? 'bg-red-700 scale-110' : 'bg-red-500'
+                          selectedCountry === marker.id ? 'bg-primary/90 scale-110' : 'bg-primary'
                         }`}
                         onClick={() => setSelectedCountry(selectedCountry === marker.id ? null : marker.id)}
                       >
@@ -232,7 +232,7 @@ export default function InteractiveGeoMap({ locations }: Props) {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Share:</span>
-                          <span className="font-semibold text-red-600">{marker.percentage}%</span>
+                          <span className="font-semibold text-primary">{marker.percentage}%</span>
                         </div>
                       </div>
                     </MapPopup>
@@ -243,15 +243,15 @@ export default function InteractiveGeoMap({ locations }: Props) {
           </div>
 
           {/* Stats Summary */}
-          <div className="bg-gradient-to-br from-red-50 to-white dark:from-red-950/20 dark:to-neutral-900 rounded-lg p-6 border border-red-200 dark:border-red-900/50">
+          <div className="bg-gradient-to-br from-primary/10 to-background rounded-lg p-6 border border-primary/20">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Locations</div>
-                <div className="text-3xl font-bold text-red-600">{validLocations.length}</div>
+                <div className="text-sm text-muted-foreground">Total Locations</div>
+                <div className="text-3xl font-bold text-primary">{validLocations.length}</div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Requests</div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">{formatNumber(totalRequests)}</div>
+                <div className="text-sm text-muted-foreground">Total Requests</div>
+                <div className="text-3xl font-bold text-foreground">{formatNumber(totalRequests)}</div>
               </div>
             </div>
 
@@ -268,19 +268,19 @@ export default function InteractiveGeoMap({ locations }: Props) {
                     className={`
                       relative group p-3 rounded-lg border-2 transition-all transform hover:scale-105
                       ${isSelected
-                        ? 'bg-red-600 border-red-700 shadow-lg scale-105'
+                        ? 'bg-primary border-primary shadow-lg scale-105'
                         : `${getHeatColor(location.count)} hover:shadow-md`
                       }
                     `}
                     title={`${location.country}: ${formatNumber(location.count)} requests (${percentage.toFixed(1)}%)`}
                   >
-                    <div className={`text-xs font-bold mb-1 ${isSelected ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`}>
+                    <div className={`text-xs font-bold mb-1 ${isSelected ? 'text-white' : 'text-foreground/80'}`}>
                       {getCountryCode(location.country)}
                     </div>
-                    <div className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>
+                    <div className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-foreground'}`}>
                       {(percentage).toFixed(0)}%
                     </div>
-                    <div className={`text-xs ${isSelected ? 'text-white opacity-90' : 'text-gray-600 dark:text-gray-400'}`}>
+                    <div className={`text-xs ${isSelected ? 'text-white opacity-90' : 'text-muted-foreground'}`}>
                       {formatNumber(location.count)}
                     </div>
                   </button>
@@ -289,39 +289,39 @@ export default function InteractiveGeoMap({ locations }: Props) {
             </div>
 
             {/* Heat legend */}
-            <div className="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
               <span>Heat: </span>
-              <div className="flex-1 mx-3 h-2 rounded-full bg-gradient-to-r from-red-300 via-red-500 to-red-600"></div>
+              <div className="flex-1 mx-3 h-2 rounded-full bg-gradient-to-r from-primary/40 via-primary/70 to-primary"></div>
               <span>Low → High</span>
             </div>
           </div>
 
           {/* Selected Location Details */}
           {selectedLocation && (
-            <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border-2 border-red-600 shadow-md">
+            <div className="bg-card rounded-lg p-4 border-2 border-primary shadow-md">
               <div className="flex items-center gap-3 mb-3">
-                <MapPin className="w-5 h-5 text-red-600" />
+                <MapPin className="w-5 h-5 text-primary" />
                 <div>
-                  <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{selectedLocation.country}</div>
+                  <div className="text-lg font-bold text-foreground">{selectedLocation.country}</div>
                   {selectedLocation.city && (
-                    <div className="text-sm text-gray-600 dark:text-gray-400">{selectedLocation.city}</div>
+                    <div className="text-sm text-muted-foreground">{selectedLocation.city}</div>
                   )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="text-gray-600 dark:text-gray-400">Requests</div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{formatNumber(selectedLocation.count)}</div>
+                  <div className="text-muted-foreground">Requests</div>
+                  <div className="text-2xl font-bold text-foreground">{formatNumber(selectedLocation.count)}</div>
                 </div>
                 <div>
-                  <div className="text-gray-600 dark:text-gray-400">Percentage</div>
-                  <div className="text-2xl font-bold text-red-600">
+                  <div className="text-muted-foreground">Percentage</div>
+                  <div className="text-2xl font-bold text-primary">
                     {((selectedLocation.count / totalRequests) * 100).toFixed(2)}%
                   </div>
                 </div>
               </div>
               {selectedLocation.latitude && selectedLocation.longitude && (
-                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
                   Coordinates: {selectedLocation.latitude.toFixed(4)}°, {selectedLocation.longitude.toFixed(4)}°
                 </div>
               )}
@@ -341,36 +341,36 @@ export default function InteractiveGeoMap({ locations }: Props) {
                   className={`
                     w-full text-left p-3 rounded-lg border transition-all
                     ${isSelected
-                      ? 'bg-red-100 dark:bg-red-950/30 border-red-600 shadow-md'
-                      : 'bg-white dark:bg-neutral-900 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/20 hover:border-red-300'
+                      ? 'bg-primary/10 border-primary shadow-md'
+                      : 'bg-card border-border hover:bg-primary/5 hover:border-primary/30'
                     }
                   `}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded ${
-                        isSelected ? 'bg-red-600 text-white' : 'bg-red-50 dark:bg-red-900/30 text-red-600'
+                        isSelected ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
                       }`}>
                         {idx + 1}
                       </span>
-                      <span className={`font-semibold ${isSelected ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'}`}>
+                      <span className={`font-semibold ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                         {location.country}
                       </span>
                       {location.city && (
-                        <span className="text-sm text-gray-500 dark:text-gray-400">• {location.city}</span>
+                        <span className="text-sm text-muted-foreground">• {location.city}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-600 dark:text-gray-400">{formatNumber(location.count)}</span>
+                      <span className="text-muted-foreground">{formatNumber(location.count)}</span>
                       <span className={`font-bold ${getTextColor(location.count)}`}>
                         {percentage.toFixed(1)}%
                       </span>
                     </div>
                   </div>
-                  <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                     <div
                       className={`h-full transition-all duration-500 ${
-                        isSelected ? 'bg-red-600' : 'bg-red-500'
+                        isSelected ? 'bg-primary' : 'bg-primary/80'
                       }`}
                       style={{ width: `${(location.count / maxCount) * 100}%` }}
                     />

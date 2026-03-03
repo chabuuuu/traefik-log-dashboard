@@ -38,12 +38,12 @@ export default function DashboardWithFilters({ logs, demoMode = false, agentId, 
     <>
       {/* Filter Status Bar */}
       {hasActiveFilters && (
-        <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200 px-4 py-3">
+        <div className="bg-info-muted border-b border-info/30 px-4 py-3">
           <div className="container mx-auto flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-semibold text-blue-900">
+                <Filter className="w-4 h-4 text-info" />
+                <span className="text-sm font-semibold text-info">
                   Active Filters:
                 </span>
               </div>
@@ -52,7 +52,7 @@ export default function DashboardWithFilters({ logs, demoMode = false, agentId, 
                   <Badge
                     key={index}
                     variant="secondary"
-                    className="bg-blue-100 text-blue-700 border-blue-300"
+                    className="bg-info/20 text-info border-info/30"
                   >
                     {summary}
                   </Badge>
@@ -60,7 +60,7 @@ export default function DashboardWithFilters({ logs, demoMode = false, agentId, 
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-blue-700">
+              <span className="text-sm text-info">
                 {filteredCount > 0 && (
                   <>
                     <span className="font-semibold">{filteredCount}</span> log{filteredCount !== 1 ? 's' : ''} filtered
@@ -71,7 +71,7 @@ export default function DashboardWithFilters({ logs, demoMode = false, agentId, 
                 asChild
                 variant="outline"
                 size="sm"
-                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                className="border-info/30 text-info hover:bg-info/10"
               >
                 <Link to="/settings/filters">
                   Manage Filters

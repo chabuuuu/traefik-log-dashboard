@@ -19,17 +19,17 @@ function formatBytes(bytes: number): string {
 }
 
 function getStatusColor(percentage: number): string {
-  if (percentage < 50) return 'text-green-600';
-  if (percentage < 75) return 'text-yellow-600';
-  if (percentage < 90) return 'text-orange-600';
-  return 'text-red-600';
+  if (percentage < 50) return 'text-success';
+  if (percentage < 75) return 'text-warning';
+  if (percentage < 90) return 'text-warning';
+  return 'text-destructive';
 }
 
 function getStatusBg(percentage: number): string {
-  if (percentage < 50) return 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800';
-  if (percentage < 75) return 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800';
-  if (percentage < 90) return 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800';
-  return 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800';
+  if (percentage < 50) return 'bg-success-muted border-success/30';
+  if (percentage < 75) return 'bg-warning-muted border-warning/30';
+  if (percentage < 90) return 'bg-warning-muted border-warning/30';
+  return 'bg-destructive-muted border-destructive/30';
 }
 
 function getStatusLabel(percentage: number): string {
@@ -228,7 +228,7 @@ function SystemSection({ systemStats }: SystemSectionProps) {
               </div>
             </div>
             <div className="flex items-center justify-center gap-2 pt-4 border-t">
-              <div className={`w-3 h-3 rounded-full ${cpuPercent < 75 && memoryPercent < 75 && diskPercent < 75 ? 'bg-green-500' : cpuPercent < 90 && memoryPercent < 90 && diskPercent < 90 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+              <div className={`w-3 h-3 rounded-full ${cpuPercent < 75 && memoryPercent < 75 && diskPercent < 75 ? 'bg-success' : cpuPercent < 90 && memoryPercent < 90 && diskPercent < 90 ? 'bg-warning' : 'bg-destructive'}`} />
               <span className="text-sm font-medium">
                 {cpuPercent < 75 && memoryPercent < 75 && diskPercent < 75
                   ? 'System Healthy'

@@ -45,13 +45,13 @@ export default function AgentSelector({ className }: AgentSelectorProps) {
   const getStatusColor = (status?: Agent['status']) => {
     switch (status) {
       case 'online':
-        return 'bg-green-500';
+        return 'bg-success';
       case 'offline':
-        return 'bg-red-500';
+        return 'bg-destructive';
       case 'checking':
-        return 'bg-yellow-500 animate-pulse';
+        return 'bg-warning animate-pulse';
       default:
-        return 'bg-gray-400';
+        return 'bg-muted-foreground';
     }
   };
 
@@ -105,7 +105,7 @@ export default function AgentSelector({ className }: AgentSelectorProps) {
                 <Circle
                   className={cn(
                     'w-2 h-2 rounded-full flex-shrink-0',
-                    isChecking[agent.id] ? 'bg-yellow-500 animate-pulse' : getStatusColor(agent.status)
+                    isChecking[agent.id] ? 'bg-warning animate-pulse' : getStatusColor(agent.status)
                   )}
                 />
                 

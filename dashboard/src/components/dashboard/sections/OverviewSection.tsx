@@ -23,40 +23,40 @@ function OverviewSection({ metrics }: OverviewSectionProps) {
       value: formatNumber(metrics.requests.total),
       description: `${metrics.requests.perSecond.toFixed(2)} req/s`,
       icon: Activity,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50 dark:bg-blue-950',
+      color: 'text-info',
+      bgColor: 'bg-info-muted',
     },
     {
       title: 'Response Time',
       value: `${metrics.responseTime.average.toFixed(0)}ms`,
       description: `P99: ${metrics.responseTime.p99.toFixed(0)}ms`,
       icon: Clock,
-      color: metrics.responseTime.average < 200 ? 'text-green-600' : metrics.responseTime.average < 500 ? 'text-yellow-600' : 'text-red-600',
-      bgColor: metrics.responseTime.average < 200 ? 'bg-green-50 dark:bg-green-950' : metrics.responseTime.average < 500 ? 'bg-yellow-50 dark:bg-yellow-950' : 'bg-red-50 dark:bg-red-950',
+      color: metrics.responseTime.average < 200 ? 'text-success' : metrics.responseTime.average < 500 ? 'text-warning' : 'text-destructive',
+      bgColor: metrics.responseTime.average < 200 ? 'bg-success-muted' : metrics.responseTime.average < 500 ? 'bg-warning-muted' : 'bg-destructive-muted',
     },
     {
       title: 'Success Rate',
       value: `${successRate.toFixed(1)}%`,
       description: `${formatNumber(metrics.statusCodes.status2xx + metrics.statusCodes.status3xx)} successful`,
       icon: successRate >= 95 ? TrendingUp : TrendingDown,
-      color: successRate >= 95 ? 'text-green-600' : successRate >= 90 ? 'text-yellow-600' : 'text-red-600',
-      bgColor: successRate >= 95 ? 'bg-green-50 dark:bg-green-950' : successRate >= 90 ? 'bg-yellow-50 dark:bg-yellow-950' : 'bg-red-50 dark:bg-red-950',
+      color: successRate >= 95 ? 'text-success' : successRate >= 90 ? 'text-warning' : 'text-destructive',
+      bgColor: successRate >= 95 ? 'bg-success-muted' : successRate >= 90 ? 'bg-warning-muted' : 'bg-destructive-muted',
     },
     {
       title: 'Active Services',
       value: metrics.backends.length.toString(),
       description: 'Services with traffic',
       icon: Server,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50 dark:bg-purple-950',
+      color: 'text-accent-foreground',
+      bgColor: 'bg-accent',
     },
   ];
 
   const statusCodes = [
-    { label: '2xx Success', value: metrics.statusCodes.status2xx, total, color: 'bg-green-500' },
-    { label: '3xx Redirect', value: metrics.statusCodes.status3xx, total, color: 'bg-blue-500' },
-    { label: '4xx Client Error', value: metrics.statusCodes.status4xx, total, color: 'bg-yellow-500' },
-    { label: '5xx Server Error', value: metrics.statusCodes.status5xx, total, color: 'bg-red-500' },
+    { label: '2xx Success', value: metrics.statusCodes.status2xx, total, color: 'bg-success' },
+    { label: '3xx Redirect', value: metrics.statusCodes.status3xx, total, color: 'bg-info' },
+    { label: '4xx Client Error', value: metrics.statusCodes.status4xx, total, color: 'bg-warning' },
+    { label: '5xx Server Error', value: metrics.statusCodes.status5xx, total, color: 'bg-destructive' },
   ];
 
   return (
@@ -120,7 +120,7 @@ function OverviewSection({ metrics }: OverviewSectionProps) {
           </div>
           <div className="mt-4 pt-4 border-t flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Error Rate</span>
-            <span className={`text-lg font-bold ${metrics.statusCodes.errorRate > 5 ? 'text-red-600' : 'text-green-600'}`}>
+            <span className={`text-lg font-bold ${metrics.statusCodes.errorRate > 5 ? 'text-destructive' : 'text-success'}`}>
               {metrics.statusCodes.errorRate.toFixed(2)}%
             </span>
           </div>
@@ -142,16 +142,16 @@ function OverviewSection({ metrics }: OverviewSectionProps) {
               { label: 'P99', value: metrics.responseTime.p99, desc: '99% of requests' },
             ].map((item, idx) => {
               const getColor = (ms: number) => {
-                if (ms < 100) return 'text-green-600';
-                if (ms < 300) return 'text-yellow-600';
-                if (ms < 1000) return 'text-orange-600';
-                return 'text-red-600';
+                if (ms < 100) return 'text-success';
+                if (ms < 300) return 'text-warning';
+                if (ms < 1000) return 'text-warning';
+                return 'text-destructive';
               };
               const getBg = (ms: number) => {
-                if (ms < 100) return 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800';
-                if (ms < 300) return 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800';
-                if (ms < 1000) return 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800';
-                return 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800';
+                if (ms < 100) return 'bg-success-muted border-success/30';
+                if (ms < 300) return 'bg-warning-muted border-warning/30';
+                if (ms < 1000) return 'bg-warning-muted border-warning/30';
+                return 'bg-destructive-muted border-destructive/30';
               };
               return (
                 <div key={idx} className={`p-4 rounded-lg border ${getBg(item.value)}`}>

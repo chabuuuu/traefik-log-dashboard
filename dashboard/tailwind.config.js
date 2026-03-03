@@ -21,6 +21,22 @@ module.exports = {
         destructive: {
           DEFAULT: 'var(--destructive)',
           foreground: 'var(--destructive-foreground)',
+          muted: 'var(--destructive-muted)',
+        },
+        success: {
+          DEFAULT: 'var(--success)',
+          foreground: 'var(--success-foreground)',
+          muted: 'var(--success-muted)',
+        },
+        warning: {
+          DEFAULT: 'var(--warning)',
+          foreground: 'var(--warning-foreground)',
+          muted: 'var(--warning-muted)',
+        },
+        info: {
+          DEFAULT: 'var(--info)',
+          foreground: 'var(--info-foreground)',
+          muted: 'var(--info-muted)',
         },
         muted: {
           DEFAULT: 'var(--muted)',
@@ -77,5 +93,5 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 };

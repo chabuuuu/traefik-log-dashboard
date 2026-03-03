@@ -222,28 +222,28 @@ export default function AgentBulkOperations({ onClose }: BulkOperationsProps) {
         <div
           className={`p-4 rounded-lg border ${
             result.type === 'success'
-              ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800'
+              ? 'bg-success-muted border-success/30'
               : result.type === 'error'
-              ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
-              : 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
+              ? 'bg-destructive-muted border-destructive/30'
+              : 'bg-info-muted border-info/30'
           }`}
         >
           <div className="flex gap-3">
             {result.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
             ) : result.type === 'error' ? (
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-info flex-shrink-0 mt-0.5" />
             )}
             <div className="flex-1">
               <p
                 className={`font-medium ${
                   result.type === 'success'
-                    ? 'text-green-900 dark:text-green-100'
+                    ? 'text-success'
                     : result.type === 'error'
-                    ? 'text-red-900 dark:text-red-100'
-                    : 'text-blue-900 dark:text-blue-100'
+                    ? 'text-destructive'
+                    : 'text-info'
                 }`}
               >
                 {result.message}
@@ -255,10 +255,10 @@ export default function AgentBulkOperations({ onClose }: BulkOperationsProps) {
                       key={index}
                       className={
                         result.type === 'success'
-                          ? 'text-green-800 dark:text-green-200'
+                          ? 'text-success/80'
                           : result.type === 'error'
-                          ? 'text-red-800 dark:text-red-200'
-                          : 'text-blue-800 dark:text-blue-200'
+                          ? 'text-destructive/80'
+                          : 'text-info/80'
                       }
                     >
                       • {detail}
@@ -375,16 +375,16 @@ export default function AgentBulkOperations({ onClose }: BulkOperationsProps) {
       </div>
 
       {/* Import Modes Info */}
-      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <h5 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 text-sm">
+      <div className="bg-info-muted border border-info/30 rounded-lg p-4">
+        <h5 className="font-semibold text-info mb-2 text-sm">
           Import Modes
         </h5>
-        <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+        <ul className="text-xs text-info/80 space-y-1">
           <li><strong>Merge:</strong> Adds new agents, updates existing ones</li>
           <li><strong>Replace:</strong> Removes all agents and imports new ones</li>
           <li><strong>Skip Existing:</strong> Only adds new agents, keeps existing ones unchanged</li>
         </ul>
-        <p className="text-xs text-blue-700 dark:text-blue-300 mt-3 flex items-center gap-2">
+        <p className="text-xs text-info/70 mt-3 flex items-center gap-2">
           Currently using:
           <Badge variant="secondary" className="text-xs">
             Merge Mode

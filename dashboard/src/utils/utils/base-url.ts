@@ -1,18 +1,7 @@
 // dashboard/lib/utils/base-url.ts
 // Helpers for base domain/base path aware URLs (reverse proxy friendly)
 
-const fallbackBasePath = (import.meta.env.VITE_BASE_PATH || '').trim();
-const fallbackBaseDomain = (import.meta.env.VITE_BASE_DOMAIN || '').trim();
-
-type RuntimeConfig = { basePath?: string; baseDomain?: string };
-
-function getRuntimeConfig(): RuntimeConfig {
-  if (typeof window === 'undefined') {
-    return {};
-  }
-  const anyWindow = window as Window & { __DASHBOARD_CONFIG__?: RuntimeConfig };
-  return anyWindow.__DASHBOARD_CONFIG__ ?? {};
-}
+import { getRuntimeConfig } from '@/utils/config/runtime-config';
 
 function normalizeBasePath(raw: string): string {
   const trimmed = raw.trim();
@@ -32,7 +21,7 @@ function normalizePath(path: string): string {
  */
 export function getBasePath(): string {
   const runtime = getRuntimeConfig();
-  return normalizeBasePath(runtime.basePath ?? fallbackBasePath);
+  return normalizeBasePath(runtime.basePath ?? '');
 }
 
 /**
@@ -40,7 +29,7 @@ export function getBasePath(): string {
  */
 export function getBaseDomain(): string {
   const runtime = getRuntimeConfig();
-  return normalizeBaseDomain(runtime.baseDomain ?? fallbackBaseDomain);
+  return normalizeBaseDomain(runtime.baseDomain ?? '');
 }
 
 /**

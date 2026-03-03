@@ -4,12 +4,23 @@ export interface RuntimeConfig {
   showDemoPage?: boolean;
   refreshIntervalMs?: number;
   maxLogsDisplay?: number;
+  density?: 'compact' | 'comfortable';
+  chartPalette?: string[];
+  themeTokens?: Record<string, string>;
   defaultAgentUrl?: string;
   defaultAgentToken?: string;
 }
 
+const buildTimeFallback: RuntimeConfig = {
+  basePath: import.meta.env.VITE_BASE_PATH || '',
+  baseDomain: import.meta.env.VITE_BASE_DOMAIN || '',
+  defaultAgentUrl: import.meta.env.VITE_AGENT_API_URL || '',
+  defaultAgentToken: import.meta.env.VITE_AGENT_API_TOKEN || '',
+};
+
 export function getRuntimeConfig(): RuntimeConfig {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === 'undefined') return buildTimeFallback;
   const anyWindow = window as Window & { __DASHBOARD_CONFIG__?: RuntimeConfig };
-  return anyWindow.__DASHBOARD_CONFIG__ ?? {};
+  const runtime = anyWindow.__DASHBOARD_CONFIG__ ?? {};
+  return { ...buildTimeFallback, ...runtime };
 }

@@ -3,6 +3,7 @@ export interface Agent {
   name: string; // Display name (e.g., "Production Server", "Staging Server")
   url: string; // Agent API URL
   token: string; // Authentication token
+  source?: 'env' | 'user'; // Agent origin. env agents are protected in UI/store.
   location: 'on-site' | 'off-site'; // Deployment location
   number: number; // Sequential agent number
   status?: 'online' | 'offline' | 'checking'; // Connection status

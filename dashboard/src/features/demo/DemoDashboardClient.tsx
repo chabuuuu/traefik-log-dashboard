@@ -55,7 +55,7 @@ export default function DemoDashboardClient() {
     >
       <div className="mb-4">
         <Badge variant="secondary" className="gap-2">
-          <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+          <span className="w-2 h-2 bg-warning rounded-full animate-pulse" />
           Demo Mode - Using simulated data
         </Badge>
       </div>

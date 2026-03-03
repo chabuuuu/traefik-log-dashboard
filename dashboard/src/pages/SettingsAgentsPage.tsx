@@ -36,8 +36,10 @@ type TabType = 'agents' | 'health' | 'bulk';
 
 // Helper function to check if agent is from environment
 function isEnvironmentAgent(agent: Agent): boolean {
-  // Environment agents typically have IDs starting with 'agent-env-' or are flagged in the database
-  return agent.id.startsWith('agent-env-');
+  // Backward-compatible detection:
+  // - preferred source flag
+  // - legacy id prefix
+  return agent.source === 'env' || agent.id.startsWith('agent-env-');
 }
 
 export default function AgentSettingsPage() {
@@ -85,11 +87,11 @@ export default function AgentSettingsPage() {
   const getStatusIcon = (status?: Agent['status']) => {
     switch (status) {
       case 'online':
-        return <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-400" />;
+        return <CheckCircle2 className="w-5 h-5 text-success" />;
       case 'offline':
-        return <XCircle className="w-5 h-5 text-red-500 dark:text-red-400" />;
+        return <XCircle className="w-5 h-5 text-destructive" />;
       case 'checking':
-        return <RefreshCw className="w-5 h-5 text-yellow-500 dark:text-yellow-400 animate-spin" />;
+        return <RefreshCw className="w-5 h-5 text-warning animate-spin" />;
       default:
         return <Circle className="w-5 h-5 text-muted-foreground" />;
     }
@@ -97,9 +99,9 @@ export default function AgentSettingsPage() {
 
   const getLocationIcon = (location: Agent['location']) => {
     return location === 'on-site' ? (
-      <MapPin className="w-4 h-4 text-green-600 dark:text-green-400" />
+      <MapPin className="w-4 h-4 text-success" />
     ) : (
-      <Server className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+      <Server className="w-4 h-4 text-info" />
     );
   };
 
@@ -129,19 +131,19 @@ export default function AgentSettingsPage() {
 
         {/* FIXED: Added info banner about environment agents */}
         {environmentAgentsCount > 0 && (
-          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+          <div className="bg-info-muted border border-info/30 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <Info className="w-5 h-5 text-info mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                <h4 className="font-semibold text-info mb-1">
                   Environment-Configured Agents
                 </h4>
-                <p className="text-sm text-blue-800 dark:text-blue-200">
+                <p className="text-sm text-info/80">
                   You have {environmentAgentsCount} agent(s) configured via environment variables.
                   These agents are protected and cannot be deleted from the UI. They are marked with a{' '}
                   <Lock className="w-4 h-4 inline-block" /> icon.
-                  To modify or remove them, update your <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">docker-compose.yml</code> or{' '}
-                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.env</code> file.
+                  To modify or remove them, update your <code className="bg-info/20 px-1 rounded">docker-compose.yml</code> or{' '}
+                  <code className="bg-info/20 px-1 rounded">.env</code> file.
                 </p>
               </div>
             </div>
@@ -256,7 +258,7 @@ export default function AgentSettingsPage() {
                             </h3>
                             {/* FIXED: Added visual indicator for environment agents */}
                             {isEnvAgent && (
-                              <div className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-md text-xs font-medium">
+                              <div className="flex items-center gap-1 bg-info/20 text-info px-2 py-1 rounded-md text-xs font-medium">
                                 <Lock className="w-3 h-3" />
                                 <span>Protected</span>
                               </div>

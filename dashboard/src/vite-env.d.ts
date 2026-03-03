@@ -7,6 +7,9 @@ declare interface Window {
     showDemoPage?: boolean;
     refreshIntervalMs?: number;
     maxLogsDisplay?: number;
+    density?: 'compact' | 'comfortable';
+    chartPalette?: string[];
+    themeTokens?: Record<string, string>;
     defaultAgentUrl?: string;
     defaultAgentToken?: string;
   };

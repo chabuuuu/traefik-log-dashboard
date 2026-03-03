@@ -42,7 +42,8 @@
     "react-leaflet-markercluster": "^5.0.0-rc.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^2.5.5"
+    "tailwind-merge": "^2.5.5",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",

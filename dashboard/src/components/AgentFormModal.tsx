@@ -114,14 +114,14 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Errors */}
           {errors.length > 0 && (
-            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="bg-destructive-muted border border-destructive/30 rounded-lg p-4">
               <div className="flex gap-2">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h4 className="font-semibold text-red-900 dark:text-red-400 mb-1">
+                  <h4 className="font-semibold text-destructive mb-1">
                     Please fix the following errors:
                   </h4>
-                  <ul className="text-sm text-red-800 dark:text-red-400 list-disc list-inside space-y-1">
+                  <ul className="text-sm text-destructive/80 list-disc list-inside space-y-1">
                     {errors.map((error, index) => (
                       <li key={index}>{error}</li>
                     ))}
@@ -141,7 +141,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Production Server"
-              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
               required
             />
             <p className="mt-1 text-xs text-muted-foreground">
@@ -159,7 +159,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
               value={formData.url}
               onChange={(e) => setFormData({ ...formData, url: e.target.value })}
               placeholder="http://traefik-agent:5000"
-              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"
+              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
               required
             />
             <p className="mt-1 text-xs text-muted-foreground">
@@ -177,7 +177,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
               value={formData.token}
               onChange={(e) => setFormData({ ...formData, token: e.target.value })}
               placeholder="your-secret-token"
-              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono text-sm"
+              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
               required
             />
             <p className="mt-1 text-xs text-muted-foreground">
@@ -227,7 +227,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Monitoring production Traefik logs on AWS EC2"
               rows={3}
-              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
             />
           </div>
 
@@ -241,7 +241,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
               value={formData.tags}
               onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
               placeholder="production, us-east-1, aws"
-              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Comma-separated tags to help organize agents
@@ -250,8 +250,8 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
 
           {/* Agent Number Preview */}
           {!agent && (
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <p className="text-sm text-blue-800 dark:text-blue-400">
+            <div className="bg-info-muted border border-info/30 rounded-lg p-4">
+              <p className="text-sm text-info">
                 This agent will be automatically assigned the next sequential number
               </p>
             </div>

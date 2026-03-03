@@ -55,12 +55,12 @@ export function DashboardHeader({
             {/* Connection Status */}
             <div className="flex items-center gap-2">
               {connected ? (
-                <Badge variant="outline" className="gap-1.5 text-green-600 border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
+                <Badge variant="outline" className="gap-1.5 text-success border-success/30 bg-success-muted">
                   <Wifi className="h-3 w-3" />
                   <span className="hidden sm:inline">Connected</span>
                 </Badge>
               ) : (
-                <Badge variant="outline" className="gap-1.5 text-red-600 border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
+                <Badge variant="outline" className="gap-1.5 text-destructive border-destructive/30 bg-destructive-muted">
                   <WifiOff className="h-3 w-3" />
                   <span className="hidden sm:inline">Disconnected</span>
                 </Badge>
@@ -99,7 +99,7 @@ export function DashboardHeader({
                 title={isPaused ? 'Resume updates' : 'Pause updates'}
               >
                 {isPaused ? (
-                  <Play className="h-4 w-4 text-green-600" />
+                  <Play className="h-4 w-4 text-success" />
                 ) : (
                   <Pause className="h-4 w-4" />
                 )}

@@ -67,11 +67,11 @@ export function getStatusCategory(status: number): string {
  * Get status code color
  */
 export function getStatusColor(status: number): string {
-  if (status >= 200 && status < 300) return 'text-green-600';
-  if (status >= 300 && status < 400) return 'text-blue-600';
-  if (status >= 400 && status < 500) return 'text-yellow-600';
-  if (status >= 500 && status < 600) return 'text-red-600';
-  return 'text-gray-600';
+  if (status >= 200 && status < 300) return 'text-success';
+  if (status >= 300 && status < 400) return 'text-info';
+  if (status >= 400 && status < 500) return 'text-warning';
+  if (status >= 500 && status < 600) return 'text-destructive';
+  return 'text-muted-foreground';
 }
 
 /**

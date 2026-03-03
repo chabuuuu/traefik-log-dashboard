@@ -6,6 +6,8 @@ export interface DashboardConfig {
   showDemoPage: boolean;
   refreshIntervalMs: number;
   maxLogsDisplay: number;
+  defaultAgentUrl?: string;
+  defaultAgentToken?: string;
   chartPalette: string[];
   density: 'compact' | 'comfortable';
   themeTokens?: Record<string, string>;
@@ -40,11 +42,24 @@ function getInlineConfig(): Partial<DashboardConfig> | null {
 }
 
 async function fetchConfig(): Promise<DashboardConfig> {
-  const response = await fetch('/api/dashboard-config', { cache: 'no-store' });
-  if (!response.ok) {
-    throw new Error(`Failed to load dashboard config: ${response.status}`);
+  const endpoints = ['/api/dashboard-config.json', '/api/dashboard-config'];
+  let lastError: Error | null = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, { cache: 'no-store' });
+      if (!response.ok) {
+        lastError = new Error(`Failed to load dashboard config from ${endpoint}: ${response.status}`);
+        continue;
+      }
+
+      return (await response.json()) as DashboardConfig;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Failed to load config');
+    }
   }
-  return (await response.json()) as DashboardConfig;
+
+  throw lastError ?? new Error('Failed to load dashboard config');
 }
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {

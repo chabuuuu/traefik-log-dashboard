@@ -40,21 +40,21 @@ const allColumns: { key: ColumnKey; label: string; default: boolean }[] = [
 
 function getMethodColor(method: string): string {
   switch (method?.toUpperCase()) {
-    case 'GET': return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
-    case 'POST': return 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300';
-    case 'PUT': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300';
-    case 'DELETE': return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300';
-    case 'PATCH': return 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300';
-    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+    case 'GET': return 'bg-info-muted text-info';
+    case 'POST': return 'bg-success-muted text-success';
+    case 'PUT': return 'bg-warning-muted text-warning';
+    case 'DELETE': return 'bg-destructive-muted text-destructive';
+    case 'PATCH': return 'bg-accent text-accent-foreground';
+    default: return 'bg-muted text-muted-foreground';
   }
 }
 
 function getStatusColor(status: number): string {
-  if (status >= 200 && status < 300) return 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300';
-  if (status >= 300 && status < 400) return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
-  if (status >= 400 && status < 500) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300';
-  if (status >= 500) return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300';
-  return 'bg-gray-100 text-gray-700';
+  if (status >= 200 && status < 300) return 'bg-success-muted text-success';
+  if (status >= 300 && status < 400) return 'bg-info-muted text-info';
+  if (status >= 400 && status < 500) return 'bg-warning-muted text-warning';
+  if (status >= 500) return 'bg-destructive-muted text-destructive';
+  return 'bg-muted text-muted-foreground';
 }
 
 function formatDuration(ns: number): string {
@@ -122,8 +122,8 @@ function LogsSection({ logs, errors }: LogsSectionProps) {
           {errors.length === 0 ? (
             <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
               <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-950 flex items-center justify-center mx-auto mb-3">
-                  <AlertCircle className="h-6 w-6 text-green-600" />
+                <div className="w-12 h-12 rounded-full bg-success-muted flex items-center justify-center mx-auto mb-3">
+                  <AlertCircle className="h-6 w-6 text-success" />
                 </div>
                 <p>No errors recorded</p>
               </div>
@@ -131,7 +131,7 @@ function LogsSection({ logs, errors }: LogsSectionProps) {
           ) : (
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {errors.slice(0, 10).map((error, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                <div key={idx} className="p-3 rounded-lg bg-destructive-muted border border-destructive/30">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <Badge variant={error.level === 'error' ? 'destructive' : 'secondary'} className="text-xs">
                       {error.level}
