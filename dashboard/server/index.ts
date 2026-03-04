@@ -4,6 +4,7 @@ import fs from 'fs';
 import { getDB, syncEnvAgents } from './db';
 import agentRoutes from './routes/agents';
 import alertRoutes from './routes/alerts';
+import locationRoutes from './routes/location';
 import proxyRoutes from './routes/proxy';
 import { initAlertingSchema } from './alerts/repository';
 import { startAlertScheduler } from './alerts/scheduler';
@@ -99,7 +100,10 @@ app.get('/api/dashboard-config.json', (_req, res) => {
   res.json(runtimeConfig);
 });
 
-// Agent API proxy (logs, system, location)
+// Local GeoIP lookup endpoints
+app.use('/api/location', locationRoutes);
+
+// Agent API proxy (logs and system)
 app.use(proxyRoutes);
 
 // --- Static files ---

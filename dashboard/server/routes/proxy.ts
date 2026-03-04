@@ -20,8 +20,9 @@ function getAuthToken(): string {
   return agent?.token || '';
 }
 
-// Proxy /api/logs/*, /api/system/*, /api/location/* to the selected agent
-const proxyPaths = ['/api/logs', '/api/system', '/api/location'];
+// Proxy /api/logs/* and /api/system/* to the selected agent.
+// /api/location/* is handled locally by dashboard/server/routes/location.ts
+const proxyPaths = ['/api/logs', '/api/system'];
 
 for (const basePath of proxyPaths) {
   router.use(
