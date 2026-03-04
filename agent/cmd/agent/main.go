@@ -17,6 +17,30 @@ import (
 	"github.com/hhftechnology/traefik-log-dashboard/agent/pkg/logger"
 )
 
+func registerRoutes(mux *http.ServeMux, chain middleware.Middleware, handler *routes.Handler, authenticator *auth.Authenticator) {
+	// Health check endpoint (no auth required)
+	mux.HandleFunc("/api/logs/status", middleware.Apply(chain, handler.HandleStatus))
+
+	// Log endpoints (with auth)
+	mux.HandleFunc("/api/logs/access", middleware.Apply(chain, authenticator.Middleware(handler.HandleAccessLogs)))
+	mux.HandleFunc("/api/logs/error", middleware.Apply(chain, authenticator.Middleware(handler.HandleErrorLogs)))
+	mux.HandleFunc("/api/logs/get", middleware.Apply(chain, authenticator.Middleware(handler.HandleGetLog)))
+	mux.HandleFunc("/api/logs/stream", middleware.Apply(chain, authenticator.Middleware(handler.HandleStreamAccessLogs)))
+
+	// Legacy aliases kept for backwards compatibility with older clients.
+	mux.HandleFunc("/stream", middleware.Apply(chain, authenticator.Middleware(handler.HandleStreamAccessLogs)))
+
+	// System endpoints (with auth)
+	mux.HandleFunc("/api/system/logs", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemLogs)))
+	mux.HandleFunc("/api/system/resources", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemResources)))
+
+	// Legacy aliases kept for backwards compatibility with older clients.
+	mux.HandleFunc("/resources", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemResources)))
+
+	// Notification proxy (with auth) — browsers can't POST to Discord/Telegram directly
+	mux.HandleFunc("/api/notify", middleware.Apply(chain, authenticator.Middleware(handler.HandleNotify)))
+}
+
 func main() {
 	// Load configuration
 	cfg := config.Load()
@@ -54,21 +78,7 @@ func main() {
 	// Set up HTTP routes with middleware
 	mux := http.NewServeMux()
 
-	// Health check endpoint (no auth required)
-	mux.HandleFunc("/api/logs/status", middleware.Apply(chain, handler.HandleStatus))
-
-	// Log endpoints (with auth)
-	mux.HandleFunc("/api/logs/access", middleware.Apply(chain, authenticator.Middleware(handler.HandleAccessLogs)))
-	mux.HandleFunc("/api/logs/error", middleware.Apply(chain, authenticator.Middleware(handler.HandleErrorLogs)))
-	mux.HandleFunc("/api/logs/get", middleware.Apply(chain, authenticator.Middleware(handler.HandleGetLog)))
-	mux.HandleFunc("/api/logs/stream", middleware.Apply(chain, authenticator.Middleware(handler.HandleStreamAccessLogs)))
-
-	// System endpoints (with auth)
-	mux.HandleFunc("/api/system/logs", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemLogs)))
-	mux.HandleFunc("/api/system/resources", middleware.Apply(chain, authenticator.Middleware(handler.HandleSystemResources)))
-
-	// Notification proxy (with auth) — browsers can't POST to Discord/Telegram directly
-	mux.HandleFunc("/api/notify", middleware.Apply(chain, authenticator.Middleware(handler.HandleNotify)))
+	registerRoutes(mux, chain, handler, authenticator)
 
 	// SPA static file serving or JSON health check fallback
 	distPath := filepath.Join("web", "dist")

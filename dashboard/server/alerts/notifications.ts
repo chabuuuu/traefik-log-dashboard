@@ -25,10 +25,49 @@ interface BuildAlertMessageInput {
 function isValidWebhookURL(rawURL: string): boolean {
   try {
     const parsed = new URL(rawURL);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    if (!(parsed.protocol === 'http:' || parsed.protocol === 'https:')) {
+      return false;
+    }
+
+    const allowPrivateTargets = process.env.ALERT_ALLOW_PRIVATE_WEBHOOKS === 'true';
+    if (!allowPrivateTargets && isPrivateNetworkHost(parsed.hostname)) {
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }
+}
+
+function isPrivateNetworkHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (
+    lower === 'localhost'
+    || lower === '0.0.0.0'
+    || lower === '::1'
+    || lower.endsWith('.local')
+    || lower.endsWith('.internal')
+  ) {
+    return true;
+  }
+
+  if (lower.startsWith('127.') || lower.startsWith('10.') || lower.startsWith('192.168.') || lower.startsWith('169.254.')) {
+    return true;
+  }
+
+  if (lower.startsWith('172.')) {
+    const second = Number(lower.split('.')[1]);
+    if (Number.isFinite(second) && second >= 16 && second <= 31) {
+      return true;
+    }
+  }
+
+  if (lower.startsWith('fc') || lower.startsWith('fd')) {
+    return true;
+  }
+
+  return false;
 }
 
 function formatMetricValue(key: string, value: unknown): string {

@@ -3,10 +3,12 @@ import {
   createAlertMetricSnapshot,
   createAlertNotificationHistory,
   deleteAlertMetricSnapshot,
+  getAlertThresholdBreached,
   listAlertRules,
   listAlertWebhooks,
   markAlertRuleEvaluation,
   pruneExpiredAlertMetricSnapshots,
+  upsertAlertThresholdState,
 } from './repository';
 import {
   AggregatedAlertMetrics,
@@ -34,8 +36,8 @@ const INTERVAL_TO_MS: Record<AlertInterval, number> = {
 
 interface FetchAgentLogsInput {
   agent: DBAgent;
-  windowMs: number;
   nowMs: number;
+  windowMs: number;
 }
 
 interface RuleDispatchInput {
@@ -47,8 +49,33 @@ interface RuleDispatchInput {
   windowStartISO: string;
 }
 
+interface ProcessAgentRuleInput {
+  agent: DBAgent;
+  context: SchedulerExecutionContext;
+  rule: AlertRule;
+  targetWebhooks: AlertWebhook[];
+  windowEndISO: string;
+  windowMs: number;
+  windowStartISO: string;
+}
+
 interface StartAlertSchedulerInput {
   runImmediately?: boolean;
+}
+
+interface SchedulerExecutionContext {
+  errors: string[];
+  logCache: Map<string, Promise<AgentLogRecord[]>>;
+  now: Date;
+  webhooksByID: Map<string, AlertWebhook>;
+}
+
+export interface AlertSchedulerCycleResult {
+  started: boolean;
+  skipped: boolean;
+  evaluatedRules: number;
+  triggeredRules: number;
+  errors: string[];
 }
 
 let schedulerTimer: NodeJS.Timeout | null = null;
@@ -156,7 +183,7 @@ function shouldEvaluateRuleNow(rule: AlertRule, now: Date): boolean {
   }
 }
 
-function thresholdRuleTriggered(rule: AlertRule, metrics: AggregatedAlertMetrics): boolean {
+function thresholdRuleBreached(rule: AlertRule, metrics: AggregatedAlertMetrics): boolean {
   const thresholdParameters = rule.parameters.filter((parameter) =>
     parameter.enabled && typeof parameter.threshold === 'number',
   );
@@ -179,6 +206,11 @@ function thresholdRuleTriggered(rule: AlertRule, metrics: AggregatedAlertMetrics
   }
 
   return checks.some(Boolean);
+}
+
+function addCycleError(context: SchedulerExecutionContext, message: string): void {
+  context.errors.push(message);
+  console.error('[alerts]', message);
 }
 
 async function fetchRecentAgentLogs(input: FetchAgentLogsInput): Promise<AgentLogRecord[]> {
@@ -214,6 +246,34 @@ async function fetchRecentAgentLogs(input: FetchAgentLogsInput): Promise<AgentLo
   } finally {
     clearTimeout(timeoutID);
   }
+}
+
+function getRuleTargetAgents(rule: AlertRule): DBAgent[] {
+  if (rule.agent_id) {
+    const agent = getAgentById(rule.agent_id);
+    return agent ? [agent] : [];
+  }
+
+  return getAllAgents();
+}
+
+async function getCachedAgentLogs(
+  context: SchedulerExecutionContext,
+  agent: DBAgent,
+  windowMs: number,
+): Promise<AgentLogRecord[]> {
+  const nowMs = context.now.getTime();
+  const key = `${agent.id}:${windowMs}:${nowMs}`;
+
+  if (!context.logCache.has(key)) {
+    context.logCache.set(key, fetchRecentAgentLogs({
+      agent,
+      nowMs,
+      windowMs,
+    }));
+  }
+
+  return context.logCache.get(key)!;
 }
 
 async function dispatchRuleNotifications(input: RuleDispatchInput): Promise<void> {
@@ -258,133 +318,194 @@ async function dispatchRuleNotifications(input: RuleDispatchInput): Promise<void
   );
 }
 
-function getRuleTargetAgents(rule: AlertRule): DBAgent[] {
-  if (rule.agent_id) {
-    const agent = getAgentById(rule.agent_id);
-    return agent ? [agent] : [];
+async function processRuleForAgent(input: ProcessAgentRuleInput): Promise<boolean> {
+  let logs: AgentLogRecord[] = [];
+
+  try {
+    logs = await getCachedAgentLogs(input.context, input.agent, input.windowMs);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch logs for alert evaluation';
+    createAlertNotificationHistory({
+      alert_rule_id: input.rule.id,
+      status: 'failed',
+      agent_id: input.agent.id,
+      error_message: message,
+      payload: JSON.stringify({
+        agent_id: input.agent.id,
+        alert_rule_id: input.rule.id,
+        window_start: input.windowStartISO,
+        window_end: input.windowEndISO,
+      }),
+    });
+    addCycleError(input.context, `rule=${input.rule.id} agent=${input.agent.id}: ${message}`);
+    return false;
   }
 
-  return getAllAgents();
+  const aggregatedMetrics = buildAggregatedMetrics({
+    logs,
+    parameters: input.rule.parameters,
+    windowMs: input.windowMs,
+  });
+
+  let shouldTrigger = true;
+
+  if (input.rule.trigger_type === 'threshold') {
+    const breached = thresholdRuleBreached(input.rule, aggregatedMetrics);
+    const wasBreached = getAlertThresholdBreached(input.rule.id, input.agent.id);
+
+    upsertAlertThresholdState({
+      ruleID: input.rule.id,
+      agentID: input.agent.id,
+      breached,
+      updatedAt: input.context.now.toISOString(),
+    });
+
+    // Fire only when a threshold transitions into breached state.
+    shouldTrigger = breached && !wasBreached;
+  }
+
+  if (!shouldTrigger) {
+    return false;
+  }
+
+  const snapshot = createAlertMetricSnapshot({
+    alert_rule_id: input.rule.id,
+    agent_id: input.agent.id,
+    metrics_json: JSON.stringify(aggregatedMetrics),
+    window_start: input.windowStartISO,
+    window_end: input.windowEndISO,
+    expires_at: new Date(input.context.now.getTime() + 30 * 60_000).toISOString(),
+  });
+
+  try {
+    await dispatchRuleNotifications({
+      agent: input.agent,
+      metrics: aggregatedMetrics,
+      rule: input.rule,
+      webhooks: input.targetWebhooks,
+      windowEndISO: input.windowEndISO,
+      windowStartISO: input.windowStartISO,
+    });
+  } finally {
+    // Snapshots are temporary by design and removed after notification dispatch.
+    deleteAlertMetricSnapshot(snapshot.id);
+  }
+
+  return true;
 }
 
-async function processRule(rule: AlertRule, webhooksByID: Map<string, AlertWebhook>, now: Date): Promise<boolean> {
+async function processRule(rule: AlertRule, context: SchedulerExecutionContext): Promise<boolean> {
   const targetWebhooks = rule.webhook_ids
-    .map((webhookID) => webhooksByID.get(webhookID))
+    .map((webhookID) => context.webhooksByID.get(webhookID))
     .filter((webhook): webhook is AlertWebhook => Boolean(webhook && webhook.enabled));
 
   if (targetWebhooks.length === 0) {
     markAlertRuleEvaluation({
       id: rule.id,
-      evaluatedAt: now.toISOString(),
+      evaluatedAt: context.now.toISOString(),
+    });
+    return false;
+  }
+
+  const targetAgents = getRuleTargetAgents(rule);
+  if (targetAgents.length === 0) {
+    markAlertRuleEvaluation({
+      id: rule.id,
+      evaluatedAt: context.now.toISOString(),
     });
     return false;
   }
 
   const windowMinutes = getWindowMinutes(rule);
   const windowMs = windowMinutes * 60_000;
-  const nowMs = now.getTime();
+  const nowMs = context.now.getTime();
   const windowStartISO = new Date(nowMs - windowMs).toISOString();
-  const windowEndISO = new Date(nowMs).toISOString();
+  const windowEndISO = context.now.toISOString();
 
-  let triggered = false;
-  const targetAgents = getRuleTargetAgents(rule);
-
-  for (const agent of targetAgents) {
-    let logs: AgentLogRecord[] = [];
-
-    try {
-      logs = await fetchRecentAgentLogs({
-        agent,
-        windowMs,
-        nowMs,
-      });
-    } catch (error) {
-      createAlertNotificationHistory({
-        alert_rule_id: rule.id,
-        status: 'failed',
-        agent_id: agent.id,
-        error_message: error instanceof Error ? error.message : 'Failed to fetch logs for alert evaluation',
-        payload: JSON.stringify({
-          agent_id: agent.id,
-          alert_rule_id: rule.id,
-          window_start: windowStartISO,
-          window_end: windowEndISO,
-        }),
-      });
-      continue;
-    }
-
-    const aggregatedMetrics = buildAggregatedMetrics({
-      logs,
-      parameters: rule.parameters,
+  const results = await Promise.allSettled(
+    targetAgents.map((agent) => processRuleForAgent({
+      agent,
+      context,
+      rule,
+      targetWebhooks,
+      windowEndISO,
       windowMs,
-    });
+      windowStartISO,
+    })),
+  );
 
-    const shouldTrigger =
-      rule.trigger_type === 'threshold'
-        ? thresholdRuleTriggered(rule, aggregatedMetrics)
-        : true;
+  const triggered = results.some((result) => result.status === 'fulfilled' && result.value);
 
-    if (!shouldTrigger) {
-      continue;
-    }
-
-    triggered = true;
-
-    const snapshot = createAlertMetricSnapshot({
-      alert_rule_id: rule.id,
-      agent_id: agent.id,
-      metrics_json: JSON.stringify(aggregatedMetrics),
-      window_start: windowStartISO,
-      window_end: windowEndISO,
-      expires_at: new Date(nowMs + 30 * 60_000).toISOString(),
-    });
-
-    try {
-      await dispatchRuleNotifications({
-        agent,
-        metrics: aggregatedMetrics,
-        rule,
-        webhooks: targetWebhooks,
-        windowEndISO,
-        windowStartISO,
-      });
-    } finally {
-      // Snapshots are temporary by design and removed after notification dispatch.
-      deleteAlertMetricSnapshot(snapshot.id);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      addCycleError(context, `rule=${rule.id} execution error: ${String(result.reason)}`);
     }
   }
 
   markAlertRuleEvaluation({
     id: rule.id,
-    evaluatedAt: now.toISOString(),
-    triggeredAt: triggered ? now.toISOString() : undefined,
+    evaluatedAt: context.now.toISOString(),
+    triggeredAt: triggered ? context.now.toISOString() : undefined,
   });
 
   return triggered;
 }
 
-export async function runAlertSchedulerCycle(): Promise<void> {
+export async function runAlertSchedulerCycle(): Promise<AlertSchedulerCycleResult> {
   if (cycleInProgress) {
-    return;
+    return {
+      started: false,
+      skipped: true,
+      evaluatedRules: 0,
+      triggeredRules: 0,
+      errors: ['scheduler cycle skipped because a previous cycle is still in progress'],
+    };
   }
 
   cycleInProgress = true;
 
+  const context: SchedulerExecutionContext = {
+    errors: [],
+    logCache: new Map(),
+    now: new Date(),
+    webhooksByID: new Map(listAlertWebhooks().map((webhook) => [webhook.id, webhook])),
+  };
+
   try {
-    const now = new Date();
-    pruneExpiredAlertMetricSnapshots(now.toISOString());
+    pruneExpiredAlertMetricSnapshots(context.now.toISOString());
 
-    const rules = listAlertRules().filter((rule) => shouldEvaluateRuleNow(rule, now));
-    const webhooks = listAlertWebhooks();
-    const webhooksByID = new Map(webhooks.map((webhook) => [webhook.id, webhook]));
+    const rules = listAlertRules().filter((rule) => shouldEvaluateRuleNow(rule, context.now));
+    const ruleResults = await Promise.allSettled(rules.map((rule) => processRule(rule, context)));
 
-    for (const rule of rules) {
-      await processRule(rule, webhooksByID, now);
+    let triggeredRules = 0;
+    for (const result of ruleResults) {
+      if (result.status === 'fulfilled') {
+        if (result.value) {
+          triggeredRules += 1;
+        }
+      } else {
+        addCycleError(context, `rule processing promise rejected: ${String(result.reason)}`);
+      }
     }
+
+    return {
+      started: true,
+      skipped: false,
+      evaluatedRules: rules.length,
+      triggeredRules,
+      errors: context.errors,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown scheduler error';
-    console.error('[alerts] scheduler cycle failed:', message);
+    addCycleError(context, `scheduler cycle failed: ${message}`);
+
+    return {
+      started: true,
+      skipped: false,
+      evaluatedRules: 0,
+      triggeredRules: 0,
+      errors: context.errors,
+    };
   } finally {
     cycleInProgress = false;
   }

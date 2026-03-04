@@ -267,7 +267,20 @@ export default function AlertRuleFormModal({
   };
 
   const handleInputChange = (field: string, value: unknown) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      if (field === 'trigger_type') {
+        const nextTrigger = value as AlertTriggerType;
+        if (nextTrigger === 'daily_summary' && prev.snapshot_window_minutes < 60) {
+          return {
+            ...prev,
+            trigger_type: nextTrigger,
+            snapshot_window_minutes: 1440,
+          };
+        }
+      }
+
+      return { ...prev, [field]: value };
+    });
     if (errors[field]) {
       setErrors(prev => {
         const newErrors = { ...prev };

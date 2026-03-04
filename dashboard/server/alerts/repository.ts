@@ -73,6 +73,13 @@ interface NotificationStatsRow {
   failed: number;
 }
 
+interface ThresholdStateRow {
+  alert_rule_id: string;
+  agent_id: string;
+  breached: number;
+  updated_at: string;
+}
+
 interface CreateWebhookInput {
   name: string;
   type: AlertWebhook['type'];
@@ -294,6 +301,16 @@ export function initAlertingSchema(): void {
 
     CREATE INDEX IF NOT EXISTS idx_alert_metric_snapshots_expires_at
       ON alert_metric_snapshots(expires_at);
+
+    CREATE TABLE IF NOT EXISTS alert_threshold_state (
+      alert_rule_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      breached INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (alert_rule_id, agent_id),
+      FOREIGN KEY (alert_rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE,
+      FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+    );
   `);
 }
 
@@ -686,4 +703,38 @@ export function listAlertMetricSnapshots(): AlertMetricSnapshot[] {
     created_at: row.created_at,
     expires_at: row.expires_at,
   }));
+}
+
+export function getAlertThresholdBreached(ruleID: string, agentID: string): boolean {
+  const row = getDB().prepare(`
+    SELECT alert_rule_id, agent_id, breached, updated_at
+    FROM alert_threshold_state
+    WHERE alert_rule_id = ? AND agent_id = ?
+  `).get(ruleID, agentID) as ThresholdStateRow | undefined;
+
+  return row?.breached === 1;
+}
+
+interface UpsertThresholdStateInput {
+  ruleID: string;
+  agentID: string;
+  breached: boolean;
+  updatedAt?: string;
+}
+
+export function upsertAlertThresholdState(input: UpsertThresholdStateInput): void {
+  const updatedAt = input.updatedAt ?? new Date().toISOString();
+
+  getDB().prepare(`
+    INSERT INTO alert_threshold_state (alert_rule_id, agent_id, breached, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(alert_rule_id, agent_id) DO UPDATE SET
+      breached = excluded.breached,
+      updated_at = excluded.updated_at
+  `).run(
+    input.ruleID,
+    input.agentID,
+    input.breached ? 1 : 0,
+    updatedAt,
+  );
 }

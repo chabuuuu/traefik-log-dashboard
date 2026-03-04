@@ -1,4 +1,4 @@
-import { Request, Response, Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { getAgentById, getAllAgents } from '../db';
 import {
   createAlertRule,
@@ -19,6 +19,25 @@ import { AlertParameterConfig, AlertRule, AlertWebhook } from '../alerts/types';
 import { runAlertSchedulerCycle } from '../alerts/scheduler';
 
 const router = Router();
+const ALERTS_API_KEY = process.env.ALERTS_API_KEY?.trim() || '';
+const SCHEDULE_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const ALLOWED_INTERVALS = new Set(['5m', '15m', '30m', '1h', '6h', '12h', '24h']);
+const ALLOWED_PARAMETERS = new Set<AlertParameterConfig['parameter']>([
+  'top_ips',
+  'top_locations',
+  'top_routes',
+  'top_status_codes',
+  'top_user_agents',
+  'top_routers',
+  'top_services',
+  'top_hosts',
+  'error_rate',
+  'response_time',
+  'request_count',
+  'request_rate',
+  'top_request_addresses',
+  'top_client_ips',
+]);
 
 interface ValidationResult<T> {
   ok: boolean;
@@ -36,6 +55,29 @@ function isTriggerType(value: unknown): value is AlertRule['trigger_type'] {
 
 function isConditionOperator(value: unknown): value is AlertRule['condition_operator'] {
   return value === 'any' || value === 'all';
+}
+
+function isScheduleTimeUTC(value: unknown): value is string {
+  return typeof value === 'string' && SCHEDULE_TIME_REGEX.test(value);
+}
+
+function requireAlertsMutationAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!ALERTS_API_KEY || req.method === 'GET') {
+    next();
+    return;
+  }
+
+  const headerValue = req.header('x-alerts-api-key')
+    || req.header('x-api-key')
+    || req.header('authorization')?.replace(/^Bearer\s+/i, '')
+    || '';
+
+  if (headerValue !== ALERTS_API_KEY) {
+    res.status(401).json({ error: 'alerts API key is required for this operation' });
+    return;
+  }
+
+  next();
 }
 
 function validateWebhookPayload(payload: unknown): ValidationResult<Omit<AlertWebhook, 'id' | 'created_at' | 'updated_at'>> {
@@ -81,19 +123,27 @@ function validateWebhookPayload(payload: unknown): ValidationResult<Omit<AlertWe
   };
 }
 
-function normalizeParameters(input: unknown): AlertParameterConfig[] {
+function normalizeParameters(input: unknown): ValidationResult<AlertParameterConfig[]> {
   if (!Array.isArray(input)) {
-    return [];
+    return { ok: true, value: [] };
   }
 
-  return input
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'))
-    .map((entry) => ({
+  const parsedParameters: AlertParameterConfig[] = [];
+
+  for (const entry of input.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))) {
+    if (!ALLOWED_PARAMETERS.has(entry.parameter as AlertParameterConfig['parameter'])) {
+      return { ok: false, error: `Unsupported alert parameter: ${String(entry.parameter)}` };
+    }
+
+    parsedParameters.push({
       parameter: entry.parameter as AlertParameterConfig['parameter'],
       enabled: entry.enabled !== false,
       limit: typeof entry.limit === 'number' ? entry.limit : undefined,
       threshold: typeof entry.threshold === 'number' ? entry.threshold : undefined,
-    }));
+    });
+  }
+
+  return { ok: true, value: parsedParameters };
 }
 
 function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule, 'id' | 'created_at' | 'updated_at' | 'last_triggered_at' | 'last_evaluated_at'>> {
@@ -120,7 +170,12 @@ function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule,
     return { ok: false, error: 'At least one webhook must be selected' };
   }
 
-  const parameters = normalizeParameters(parsed.parameters);
+  const normalizedParameters = normalizeParameters(parsed.parameters);
+  if (!normalizedParameters.ok || !normalizedParameters.value) {
+    return { ok: false, error: normalizedParameters.error };
+  }
+
+  const parameters = normalizedParameters.value;
   const enabledParameters = parameters.filter((parameter) => parameter.enabled);
   if (enabledParameters.length === 0) {
     return { ok: false, error: 'At least one parameter must be enabled' };
@@ -133,16 +188,46 @@ function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule,
     }
   }
 
-  const snapshotWindowMinutes =
+  const requestedWindowMinutes =
     typeof parsed.snapshot_window_minutes === 'number' && parsed.snapshot_window_minutes > 0
       ? Math.floor(parsed.snapshot_window_minutes)
-      : parsed.trigger_type === 'daily_summary'
-        ? 24 * 60
-        : 5;
+      : undefined;
+
+  let snapshotWindowMinutes = requestedWindowMinutes
+    ?? (parsed.trigger_type === 'daily_summary' ? 24 * 60 : 5);
+
+  if (parsed.trigger_type === 'daily_summary' && snapshotWindowMinutes < 60) {
+    snapshotWindowMinutes = 24 * 60;
+  }
 
   const conditionOperator = isConditionOperator(parsed.condition_operator)
     ? parsed.condition_operator
     : 'any';
+
+  if (parsed.trigger_type === 'interval' && !ALLOWED_INTERVALS.has(String(parsed.interval || ''))) {
+    return { ok: false, error: 'interval must be one of 5m, 15m, 30m, 1h, 6h, 12h, or 24h' };
+  }
+
+  if (parsed.trigger_type === 'daily_summary') {
+    const scheduleTime = parsed.schedule_time_utc ?? DEFAULT_SCHEDULE_TIME;
+    if (!isScheduleTimeUTC(scheduleTime)) {
+      return { ok: false, error: 'schedule_time_utc must be HH:mm in UTC' };
+    }
+  }
+
+  const agentID = typeof parsed.agent_id === 'string' && parsed.agent_id.trim().length > 0
+    ? parsed.agent_id.trim()
+    : undefined;
+
+  if (agentID && !getAgentById(agentID)) {
+    return { ok: false, error: `Agent not found: ${agentID}` };
+  }
+
+  const existingWebhookIDs = new Set(listAlertWebhooks().map((webhook) => webhook.id));
+  const unknownWebhookID = webhookIDs.find((webhookID) => !existingWebhookIDs.has(webhookID));
+  if (unknownWebhookID) {
+    return { ok: false, error: `Webhook not found: ${unknownWebhookID}` };
+  }
 
   return {
     ok: true,
@@ -150,19 +235,25 @@ function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule,
       name,
       description: typeof parsed.description === 'string' ? parsed.description.trim() : undefined,
       enabled: parsed.enabled !== false,
-      agent_id: typeof parsed.agent_id === 'string' && parsed.agent_id.trim().length > 0
-        ? parsed.agent_id.trim()
-        : undefined,
+      agent_id: agentID,
       webhook_ids: webhookIDs,
       trigger_type: parsed.trigger_type,
       interval: typeof parsed.interval === 'string' ? parsed.interval as AlertRule['interval'] : undefined,
-      schedule_time_utc: typeof parsed.schedule_time_utc === 'string' ? parsed.schedule_time_utc : undefined,
+      schedule_time_utc: isScheduleTimeUTC(parsed.schedule_time_utc)
+        ? parsed.schedule_time_utc
+        : parsed.trigger_type === 'daily_summary'
+          ? DEFAULT_SCHEDULE_TIME
+          : undefined,
       snapshot_window_minutes: snapshotWindowMinutes,
       condition_operator: conditionOperator,
       parameters,
     },
   };
 }
+
+const DEFAULT_SCHEDULE_TIME = '09:00';
+
+router.use(requireAlertsMutationAuth);
 
 router.get('/webhooks', (_req: Request, res: Response) => {
   res.json(listAlertWebhooks());
@@ -416,8 +507,18 @@ router.get('/stats', (_req: Request, res: Response) => {
 });
 
 router.post('/run', async (_req: Request, res: Response) => {
-  await runAlertSchedulerCycle();
-  res.json({ success: true });
+  const result = await runAlertSchedulerCycle();
+  if (result.errors.length > 0 && result.started && !result.skipped) {
+    res.status(500).json({ success: false, ...result });
+    return;
+  }
+
+  if (result.skipped) {
+    res.status(409).json({ success: false, ...result });
+    return;
+  }
+
+  res.json({ success: true, ...result });
 });
 
 export default router;
