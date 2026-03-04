@@ -98,14 +98,95 @@ function formatMetricValue(key: string, value: unknown): string {
   return String(value);
 }
 
+function formatAlertTimestamp(isoTimestamp: string): string {
+  const timestamp = new Date(isoTimestamp);
+  if (Number.isNaN(timestamp.getTime())) {
+    return isoTimestamp;
+  }
+
+  return timestamp.toLocaleString('en-US');
+}
+
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+}
+
+function formatRequestWord(count: number): string {
+  return count === 1 ? 'request' : 'requests';
+}
+
+function getTopIPMetrics(metrics: AggregatedAlertMetrics): Array<{ ip: string; count: number }> {
+  if (Array.isArray(metrics.top_ips) && metrics.top_ips.length > 0) {
+    return metrics.top_ips;
+  }
+
+  if (Array.isArray(metrics.top_client_ips) && metrics.top_client_ips.length > 0) {
+    return metrics.top_client_ips;
+  }
+
+  return [];
+}
+
+function getTopIPLimit(rule: AlertRule): number {
+  const topIPConfig = rule.parameters.find((parameter) => parameter.parameter === 'top_ips' || parameter.parameter === 'top_client_ips');
+  const configuredLimit = topIPConfig?.limit ?? 5;
+  return Math.max(1, Math.min(10, configuredLimit));
+}
+
 export function buildAlertMessage(input: BuildAlertMessageInput): string {
   const lines: string[] = [];
-  lines.push(`Rule: ${input.rule.name}`);
   lines.push(`Agent: ${input.agentName}`);
-  lines.push(`Trigger: ${input.rule.trigger_type}`);
-  lines.push(`Window: ${input.windowStartISO} -> ${input.windowEndISO}`);
+  lines.push(`🚨 ${input.rule.name}`);
+  lines.push(`Alert triggered at ${formatAlertTimestamp(input.windowEndISO)}`);
+
+  if (typeof input.metrics.request_count === 'number') {
+    lines.push('📈 Total Requests');
+    lines.push(formatInteger(input.metrics.request_count));
+  }
+
+  if (typeof input.metrics.error_rate === 'number') {
+    lines.push('❌ Error Rate');
+    lines.push(`${input.metrics.error_rate.toFixed(2)}%`);
+  }
+
+  if (input.metrics.response_time) {
+    lines.push('⏱️ Response Time');
+    lines.push(`Avg: ${Math.round(input.metrics.response_time.average)}ms`);
+    lines.push(`P95: ${Math.round(input.metrics.response_time.p95)}ms`);
+    lines.push(`P99: ${Math.round(input.metrics.response_time.p99)}ms`);
+  }
+
+  const topIPs = getTopIPMetrics(input.metrics);
+  if (topIPs.length > 0) {
+    const topIPLimit = getTopIPLimit(input.rule);
+    const topIPRows = topIPs.slice(0, topIPLimit);
+    lines.push(`🔝 Top ${topIPRows.length} IPs`);
+    for (const row of topIPRows) {
+      lines.push(`${row.ip} - ${formatInteger(row.count)} ${formatRequestWord(row.count)}`);
+    }
+  }
+
+  if (
+    typeof input.metrics.request_rate === 'number'
+    && typeof input.metrics.request_count !== 'number'
+  ) {
+    lines.push('⚡ Request Rate');
+    lines.push(`${input.metrics.request_rate.toFixed(2)} req/s`);
+  }
+
+  const handledKeys = new Set([
+    'request_count',
+    'error_rate',
+    'response_time',
+    'top_ips',
+    'top_client_ips',
+    'request_rate',
+  ]);
 
   for (const [key, value] of Object.entries(input.metrics)) {
+    if (handledKeys.has(key) || value == null) {
+      continue;
+    }
     lines.push(`${key}: ${formatMetricValue(key, value)}`);
   }
 
@@ -132,12 +213,18 @@ export async function sendWebhookNotification(
     if (input.webhook.type === 'discord') {
       body = JSON.stringify({
         username: 'Traefik Log Dashboard',
+        allowed_mentions: {
+          parse: [],
+        },
         embeds: [
           {
             title: input.title,
             description: input.message,
             color: 15158332,
             timestamp: new Date().toISOString(),
+            footer: {
+              text: 'Traefik Log Dashboard',
+            },
           },
         ],
       });

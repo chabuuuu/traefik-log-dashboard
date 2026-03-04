@@ -288,7 +288,7 @@ async function dispatchRuleNotifications(input: RuleDispatchInput): Promise<void
     metrics: input.metrics,
   };
 
-  const title = `[${input.rule.trigger_type.toUpperCase()}] ${input.rule.name}`;
+  const title = `🚨 ${input.rule.name}`;
   const message = buildAlertMessage({
     rule: input.rule,
     metrics: input.metrics,
