@@ -16,6 +16,10 @@ interface AgentFormModalProps {
 export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModalProps) {
   const { addAgent, updateAgent } = useAgents();
   const [errors, setErrors] = useState<string[]>([]);
+  const sameOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost:5000';
   
   const [formData, setFormData] = useState({
     name: '',
@@ -39,7 +43,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
     } else {
       setFormData({
         name: '',
-        url: 'http://traefik-agent:5000',
+        url: sameOrigin,
         token: '',
         location: 'on-site',
         description: '',
@@ -47,7 +51,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
       });
     }
     setErrors([]);
-  }, [agent, isOpen]);
+  }, [agent, isOpen, sameOrigin]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +162,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
               type="url"
               value={formData.url}
               onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-              placeholder="http://traefik-agent:5000"
+              placeholder="http://localhost:3000"
               className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
               required
             />

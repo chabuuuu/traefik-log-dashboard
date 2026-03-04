@@ -8,8 +8,12 @@ import { getRuntimeConfig } from './config/runtime-config';
 
 export function getAgentConfig() {
   const runtime = getRuntimeConfig();
+  const sameOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost:5000';
   return {
-    url: runtime.defaultAgentUrl || 'http://traefik-agent:5000',
+    url: runtime.defaultAgentUrl || sameOrigin,
     token: runtime.defaultAgentToken || '',
   };
 }

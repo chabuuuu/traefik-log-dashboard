@@ -88,4 +88,24 @@ describe('agentStore env sync', () => {
     const afterDelete = agentStore.getAgents();
     expect(afterDelete.some((agent) => agent.id === 'agent-env-default')).toBe(true);
   });
+
+  it('creates env-backed same-origin agent when token is provided without url', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        __DASHBOARD_CONFIG__: {
+          defaultAgentToken: 'env-token-only',
+        },
+        location: { origin: 'https://dashboard.example.com' },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const agents = agentStore.getAgents();
+    expect(agents).toHaveLength(1);
+    expect(agents[0].id).toBe('agent-env-default');
+    expect(agents[0].source).toBe('env');
+    expect(agents[0].url).toBe('https://dashboard.example.com');
+    expect(agents[0].token).toBe('env-token-only');
+  });
 });

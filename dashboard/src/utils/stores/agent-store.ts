@@ -18,12 +18,22 @@ function isEnvironmentAgent(agent: Agent): boolean {
   return agent.source === 'env' || agent.id.startsWith('agent-env-');
 }
 
+function getBrowserOrigin(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return 'http://localhost:5000';
+}
+
 function getEnvAgentConfig(): EnvAgentConfig | null {
   const runtime = getRuntimeConfig();
-  const url = (runtime.defaultAgentUrl || '').trim();
+  const runtimeURL = (runtime.defaultAgentUrl || '').trim();
   const token = (runtime.defaultAgentToken || '').trim();
 
-  // URL determines whether an explicit env-backed default agent is configured.
+  // Treat runtime-provided token as a signal that dashboard is env-configured.
+  // When URL is omitted, use same-origin so API calls flow through the dashboard proxy.
+  const url = runtimeURL || (token ? getBrowserOrigin() : '');
+
   if (!url) return null;
 
   return { url, token };
@@ -34,7 +44,7 @@ function buildUserDefaultAgent(): Agent {
   return {
     id: 'agent-001',
     name: 'Default Agent',
-    url: runtime.defaultAgentUrl || 'http://traefik-agent:5000',
+    url: runtime.defaultAgentUrl || getBrowserOrigin(),
     token: runtime.defaultAgentToken || '',
     source: 'user',
     location: 'on-site',

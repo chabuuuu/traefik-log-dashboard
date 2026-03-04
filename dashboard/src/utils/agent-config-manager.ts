@@ -33,17 +33,19 @@ export class AgentConfigManager {
   }
 
   /**
-   * Get default agents from environment variables
-   * FIX: Use traefik-agent:5000 as default for Docker compatibility
+   * Get default agents from runtime configuration
+   * Falls back to same-origin so API calls can be proxied by the dashboard host.
    */
   private static getDefaultAgents(): Agent[] {
     const runtime = getRuntimeConfig();
+    const sameOrigin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'http://localhost:5000';
     const defaultAgent: Agent = {
       id: 'agent-001',
       name: 'Default Agent',
-      // FIX: Use traefik-agent:5000 for Docker internal network
-      // This matches the service name in docker-compose.yml
-      url: runtime.defaultAgentUrl || 'http://traefik-agent:5000',
+      url: runtime.defaultAgentUrl || sameOrigin,
       token: runtime.defaultAgentToken || '',
       location: 'on-site',
       number: 1,

@@ -1,7 +1,9 @@
 #!/bin/sh
 set -e
 
-DIST_DIR="/app/dist"
+DIST_DIR="/usr/share/nginx/html"
+NGINX_TEMPLATE="/etc/nginx/templates/default.conf.template"
+NGINX_CONFIG="/etc/nginx/conf.d/default.conf"
 
 pick_first_non_empty() {
   for key in "$@"; do
@@ -45,6 +47,7 @@ MAX_LOGS_RAW="$(pick_first_non_empty DASHBOARD_MAX_LOGS_DISPLAY MAX_LOGS_DISPLAY
 DENSITY="$(pick_first_non_empty DASHBOARD_DENSITY UI_DENSITY || true)"
 AGENT_URL="$(pick_first_non_empty AGENT_URL AGENT_API_URL VITE_AGENT_API_URL || true)"
 AGENT_TOKEN="$(pick_first_non_empty AGENT_API_TOKEN AGENT_TOKEN VITE_AGENT_API_TOKEN || true)"
+FRONTEND_AGENT_URL="$(pick_first_non_empty DASHBOARD_DEFAULT_AGENT_URL DEFAULT_AGENT_URL || true)"
 
 [ -n "$DENSITY" ] || DENSITY="comfortable"
 SHOW_DEMO="$(to_bool "$SHOW_DEMO_RAW" "true")"
@@ -54,8 +57,18 @@ MAX_LOGS="$(to_int "$MAX_LOGS_RAW" "1000")"
 BASE_PATH_ESCAPED="$(json_escape "$BASE_PATH")"
 BASE_DOMAIN_ESCAPED="$(json_escape "$BASE_DOMAIN")"
 DENSITY_ESCAPED="$(json_escape "$DENSITY")"
-AGENT_URL_ESCAPED="$(json_escape "$AGENT_URL")"
 AGENT_TOKEN_ESCAPED="$(json_escape "$AGENT_TOKEN")"
+FRONTEND_AGENT_URL_ESCAPED="$(json_escape "$FRONTEND_AGENT_URL")"
+
+[ -n "$AGENT_URL" ] || AGENT_URL="http://traefik-agent:5000"
+
+AGENT_UPSTREAM="$(printf '%s' "$AGENT_URL" | sed 's:/*$::')"
+case "$AGENT_UPSTREAM" in
+  */api|*/api/*)
+    AGENT_UPSTREAM="${AGENT_UPSTREAM%/api*}"
+    ;;
+esac
+AGENT_UPSTREAM="$AGENT_UPSTREAM/"
 
 RUNTIME_CONFIG_JSON=$(cat <<EOF
 {
@@ -67,7 +80,7 @@ RUNTIME_CONFIG_JSON=$(cat <<EOF
   "chartPalette": ["var(--chart-1)","var(--chart-2)","var(--chart-3)","var(--chart-4)","var(--chart-5)"],
   "density": "$DENSITY_ESCAPED",
   "themeTokens": {},
-  "defaultAgentUrl": "$AGENT_URL_ESCAPED",
+  "defaultAgentUrl": "$FRONTEND_AGENT_URL_ESCAPED",
   "defaultAgentToken": "$AGENT_TOKEN_ESCAPED"
 }
 EOF
@@ -87,5 +100,10 @@ EOF
 cat > "$CONFIG_DIR/dashboard-config.json" <<EOF
 $RUNTIME_CONFIG_JSON
 EOF
+
+# Render nginx config with the resolved upstream.
+if [ -f "$NGINX_TEMPLATE" ]; then
+  sed "s|__AGENT_UPSTREAM__|$AGENT_UPSTREAM|g" "$NGINX_TEMPLATE" > "$NGINX_CONFIG"
+fi
 
 exec "$@"
