@@ -5,6 +5,7 @@ import { Agent } from '../types/agent';
 import { toast } from 'sonner';
 import { agentStore } from '../stores/agent-store';
 import { apiClient } from '../api-client';
+import { getBaseOrigin } from '../utils/base-url';
 
 interface AgentContextType {
   agents: Agent[];
@@ -31,13 +32,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Keep shared API client aligned with the active agent so all hooks
-  // (logs/system/location) use the selected endpoint and auth token.
+  // Keep shared API client aligned with selected auth token.
+  // Requests stay same-origin so the dashboard server can proxy to internal agent URLs.
   useEffect(() => {
     if (!selectedAgent) {
       return;
     }
-    apiClient.setBaseURL(selectedAgent.url);
+    apiClient.setBaseURL(getBaseOrigin());
     apiClient.setAuthToken(selectedAgent.token || '');
   }, [selectedAgent]);
 

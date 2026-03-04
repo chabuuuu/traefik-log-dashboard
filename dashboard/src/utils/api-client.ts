@@ -217,7 +217,20 @@ export class APIClient {
    * Set base URL
    */
   setBaseURL(url: string) {
-    this.baseOrigin = url.replace(/\/$/, '');
+    const normalized = url.replace(/\/$/, '');
+
+    // In secure browser contexts, never allow downgrading API calls to http://
+    // because that triggers mixed-content blocking.
+    if (
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      normalized.startsWith('http://')
+    ) {
+      this.baseOrigin = '';
+      return;
+    }
+
+    this.baseOrigin = normalized;
   }
 
   /**
