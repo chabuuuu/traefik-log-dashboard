@@ -5,7 +5,7 @@ import { Webhook } from './types/alerting';
 import { notificationStore } from './stores/notification-store';
 
 interface NotifyPayload {
-  type: 'discord' | 'telegram';
+  type: 'discord' | 'telegram' | 'webhook';
   url: string;
   title: string;
   message: string;

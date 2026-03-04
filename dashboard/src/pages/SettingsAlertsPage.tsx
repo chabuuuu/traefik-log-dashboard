@@ -18,16 +18,13 @@ import { Link } from '@tanstack/react-router';
 import { Webhook, AlertRule } from '@/utils/types/alerting';
 import WebhookFormModal from '@/components/WebhookFormModal';
 import AlertRuleFormModal from '@/components/AlertRuleFormModal';
-import { webhookStore } from '@/utils/stores/webhook-store';
-import { alertStore } from '@/utils/stores/alert-store';
-import { notificationStore } from '@/utils/stores/notification-store';
-import { sendNotification } from '@/utils/notification-service';
+import { alertApiClient } from '@/utils/alert-api-client';
 import { useAgents } from '@/utils/contexts/AgentContext';
 
 type TabType = 'webhooks' | 'alerts';
 
 export default function AlertsSettingsPage() {
-  const { agents, selectedAgent } = useAgents();
+  const { agents } = useAgents();
   const [activeTab, setActiveTab] = useState<TabType>('webhooks');
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
@@ -42,14 +39,22 @@ export default function AlertsSettingsPage() {
 
   const [stats, setStats] = useState({ total: 0, last24h: 0, success: 0, failed: 0 });
 
-  const loadData = useCallback(() => {
-    setWebhooks(webhookStore.getWebhooks());
-    setAlerts(alertStore.getAlertRules());
-    setStats(notificationStore.getStats());
+  const loadData = useCallback(async () => {
+    const [webhooksResponse, rulesResponse, statsResponse] = await Promise.all([
+      alertApiClient.listWebhooks(),
+      alertApiClient.listAlertRules(),
+      alertApiClient.getStats(),
+    ]);
+
+    setWebhooks(webhooksResponse);
+    setAlerts(rulesResponse);
+    setStats(statsResponse);
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData().catch((error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to load alerting settings');
+    });
   }, [loadData]);
 
   // Webhook handlers
@@ -64,35 +69,24 @@ export default function AlertsSettingsPage() {
   };
 
   const handleSaveWebhook = async (webhookData: Partial<Webhook>) => {
-    if (editingWebhook) {
-      webhookStore.updateWebhook(editingWebhook.id, webhookData);
-      toast.success('Webhook updated');
-    } else {
-      webhookStore.addWebhook(webhookData as Omit<Webhook, 'id' | 'created_at' | 'updated_at'>);
-      toast.success('Webhook created');
+    try {
+      if (editingWebhook) {
+        await alertApiClient.updateWebhook(editingWebhook.id, webhookData);
+        toast.success('Webhook updated');
+      } else {
+        await alertApiClient.createWebhook(webhookData);
+        toast.success('Webhook created');
+      }
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save webhook');
     }
-    loadData();
   };
 
   const handleTestWebhook = async (webhookId: string) => {
-    const webhook = webhookStore.getWebhookById(webhookId);
-    if (!webhook) return;
-
-    const agent = selectedAgent ?? agents[0];
-    if (!agent) {
-      toast.error('No agent configured to proxy notifications');
-      return;
-    }
-
     setTestingWebhook(webhookId);
     try {
-      const result = await sendNotification(
-        agent.url,
-        agent.token,
-        webhook,
-        'Test Notification',
-        'This is a test notification from Traefik Log Dashboard.',
-      );
+      const result = await alertApiClient.testWebhook(webhookId);
 
       if (result.success) {
         toast.success('Test notification sent successfully');
@@ -103,21 +97,29 @@ export default function AlertsSettingsPage() {
       toast.error('Failed to test webhook');
     } finally {
       setTestingWebhook(null);
-      loadData(); // refresh stats
+      await loadData(); // refresh stats
     }
   };
 
-  const handleToggleWebhook = (webhook: Webhook) => {
-    webhookStore.updateWebhook(webhook.id, { enabled: !webhook.enabled });
-    toast.success(`Webhook ${!webhook.enabled ? 'enabled' : 'disabled'}`);
-    loadData();
+  const handleToggleWebhook = async (webhook: Webhook) => {
+    try {
+      await alertApiClient.updateWebhook(webhook.id, { enabled: !webhook.enabled });
+      toast.success(`Webhook ${!webhook.enabled ? 'enabled' : 'disabled'}`);
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update webhook');
+    }
   };
 
-  const handleDeleteWebhook = (webhook: Webhook) => {
+  const handleDeleteWebhook = async (webhook: Webhook) => {
     if (!confirm(`Delete webhook "${webhook.name}"?`)) return;
-    webhookStore.deleteWebhook(webhook.id);
-    toast.success('Webhook deleted');
-    loadData();
+    try {
+      await alertApiClient.deleteWebhook(webhook.id);
+      toast.success('Webhook deleted');
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete webhook');
+    }
   };
 
   // Alert handlers
@@ -132,79 +134,56 @@ export default function AlertsSettingsPage() {
   };
 
   const handleSaveAlert = async (alertData: Partial<AlertRule>) => {
-    if (editingAlert) {
-      alertStore.updateAlertRule(editingAlert.id, alertData);
-      toast.success('Alert rule updated');
-    } else {
-      alertStore.addAlertRule(alertData as Omit<AlertRule, 'id' | 'created_at' | 'updated_at'>);
-      toast.success('Alert rule created');
+    try {
+      if (editingAlert) {
+        await alertApiClient.updateAlertRule(editingAlert.id, alertData);
+        toast.success('Alert rule updated');
+      } else {
+        await alertApiClient.createAlertRule(alertData);
+        toast.success('Alert rule created');
+      }
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save alert rule');
     }
-    loadData();
   };
 
-  const handleToggleAlert = (alert: AlertRule) => {
-    alertStore.updateAlertRule(alert.id, { enabled: !alert.enabled });
-    toast.success(`Alert ${!alert.enabled ? 'enabled' : 'disabled'}`);
-    loadData();
+  const handleToggleAlert = async (alert: AlertRule) => {
+    try {
+      await alertApiClient.updateAlertRule(alert.id, { enabled: !alert.enabled });
+      toast.success(`Alert ${!alert.enabled ? 'enabled' : 'disabled'}`);
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update alert');
+    }
   };
 
   const handleTestAlert = async (alert: AlertRule) => {
     setTestingAlert(alert.id);
-
-    const agent = alert.agent_id
-      ? agents.find((a) => a.id === alert.agent_id)
-      : selectedAgent ?? agents[0];
-
-    if (!agent) {
-      toast.error('No agent available to test alert');
-      setTestingAlert(null);
-      return;
-    }
-
     try {
-      // Send test to each webhook
-      const alertWebhooks = alert.webhook_ids
-        .map((id) => webhookStore.getWebhookById(id))
-        .filter((w): w is Webhook => w !== null && w.enabled);
-
-      if (alertWebhooks.length === 0) {
-        toast.error('No enabled webhooks configured for this alert');
-        return;
-      }
-
-      const results = await Promise.allSettled(
-        alertWebhooks.map((webhook) =>
-          sendNotification(
-            agent.url,
-            agent.token,
-            webhook,
-            `[TEST] ${alert.name}`,
-            `Test alert triggered for "${alert.name}"`,
-          ),
-        ),
-      );
-
-      const allOk = results.every(
-        (r) => r.status === 'fulfilled' && r.value.success,
-      );
-      if (allOk) {
+      const result = await alertApiClient.testAlertRule(alert.id);
+      if (result.success) {
         toast.success('Test alert triggered successfully');
       } else {
-        toast.error('Some notifications failed');
+        toast.error(result.error || 'Some notifications failed');
       }
     } catch {
       toast.error('Failed to test alert');
     } finally {
       setTestingAlert(null);
-      loadData();
+      await loadData();
     }
   };
 
-  const handleDeleteAlert = (alert: AlertRule) => {
+  const handleDeleteAlert = async (alert: AlertRule) => {
     if (!confirm(`Delete alert rule "${alert.name}"?`)) return;
-    alertStore.deleteAlertRule(alert.id);
-    toast.success('Alert rule deleted');
-    loadData();
+    try {
+      await alertApiClient.deleteAlertRule(alert.id);
+      toast.success('Alert rule deleted');
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete alert');
+    }
   };
 
   return (
@@ -284,7 +263,7 @@ export default function AlertsSettingsPage() {
         <div>
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-muted-foreground">
-              Configure Discord and Telegram webhooks for notifications
+              Configure Discord and generic webhooks for notifications
             </p>
             <Button onClick={handleAddWebhook}>
               <Plus className="w-4 h-4 mr-2" />

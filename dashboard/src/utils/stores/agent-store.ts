@@ -1,189 +1,224 @@
-// Client-side agent configuration store backed by localStorage.
-// Replaces server-side /api/agents CRUD.
+// Agent configuration store backed by server-side SQLite via API.
+// Replaces the previous localStorage implementation.
 
 import { Agent } from '../types/agent';
-import { getRuntimeConfig } from '../config/runtime-config';
-import { createLocalStore } from './local-store';
 
-const STORAGE_KEY = 'tld-agents';
-const SELECTED_KEY = 'tld-selected-agent';
-const ENV_AGENT_ID = 'agent-env-default';
+const API_BASE = '/api/dashboard/agents';
 
-type EnvAgentConfig = {
-  url: string;
-  token: string;
-};
+// In-memory cache — refreshed from server on mutations
+let cachedAgents: Agent[] | null = null;
+let cachedSelectedId: string | null = null;
 
-function isEnvironmentAgent(agent: Agent): boolean {
-  return agent.source === 'env' || agent.id.startsWith('agent-env-');
+const LEGACY_STORAGE_KEY = 'tld-agents';
+const LEGACY_SELECTED_KEY = 'tld-selected-agent';
+const MIGRATION_DONE_KEY = 'tld-migration-done';
+
+// --- Internal helpers ---
+
+async function fetchAgents(): Promise<Agent[]> {
+  const res = await fetch(API_BASE);
+  if (!res.ok) throw new Error(`Failed to fetch agents: ${res.status}`);
+  return res.json();
 }
 
-function getBrowserOrigin(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
-  }
-  return 'http://localhost:5000';
+async function fetchSelectedAgent(): Promise<Agent | null> {
+  const res = await fetch(`${API_BASE}/selected`);
+  if (!res.ok) return null;
+  return res.json();
 }
 
-function getEnvAgentConfig(): EnvAgentConfig | null {
-  const runtime = getRuntimeConfig();
-  const runtimeURL = (runtime.defaultAgentUrl || '').trim();
-  const token = (runtime.defaultAgentToken || '').trim();
-
-  // Treat runtime-provided token as a signal that dashboard is env-configured.
-  // When URL is omitted, use same-origin so API calls flow through the dashboard proxy.
-  const url = runtimeURL || (token ? getBrowserOrigin() : '');
-
-  if (!url) return null;
-
-  return { url, token };
+function invalidateCache(): void {
+  cachedAgents = null;
+  cachedSelectedId = null;
 }
 
-function buildUserDefaultAgent(): Agent {
-  const runtime = getRuntimeConfig();
-  return {
-    id: 'agent-001',
-    name: 'Default Agent',
-    url: runtime.defaultAgentUrl || getBrowserOrigin(),
-    token: runtime.defaultAgentToken || '',
-    source: 'user',
-    location: 'on-site',
-    number: 1,
-    status: 'checking',
-  };
-}
+// --- localStorage Migration ---
 
-function getDefaultAgents(): Agent[] {
-  const env = getEnvAgentConfig();
-  if (env) {
-    return [
-      {
-        id: ENV_AGENT_ID,
-        name: 'Default Agent',
-        url: env.url,
-        token: env.token,
-        source: 'env',
-        location: 'on-site',
-        number: 1,
-        status: 'checking',
-      },
-    ];
-  }
-  return [buildUserDefaultAgent()];
-}
+async function migrateFromLocalStorage(): Promise<void> {
+  if (typeof window === 'undefined') return;
 
-function syncAgentsWithEnvironment(agents: Agent[]): Agent[] {
-  const normalized = agents.map((agent) => ({
-    ...agent,
-    source: isEnvironmentAgent(agent) ? 'env' : agent.source || 'user',
-  }));
+  // Already migrated
+  if (localStorage.getItem(MIGRATION_DONE_KEY)) return;
 
-  const env = getEnvAgentConfig();
-  if (!env) {
-    const withoutEnv = normalized.filter((agent) => !isEnvironmentAgent(agent));
-    return withoutEnv.length > 0 ? withoutEnv : [buildUserDefaultAgent()];
+  const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) {
+    localStorage.setItem(MIGRATION_DONE_KEY, '1');
+    return;
   }
 
-  const existingEnv = normalized.find((agent) => isEnvironmentAgent(agent));
-  const nonEnv = normalized.filter((agent) => {
-    if (isEnvironmentAgent(agent)) return false;
-    // Migration: replace legacy bootstrap default with the env-backed default.
-    if (agent.source === 'user' && agent.id === 'agent-001' && agent.name === 'Default Agent') {
-      return false;
+  try {
+    const agents = JSON.parse(raw) as Agent[];
+    const userAgents = agents.filter(a => a.source !== 'env' && !a.id.startsWith('agent-env-'));
+
+    if (userAgents.length > 0) {
+      await fetch(`${API_BASE}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agents: userAgents }),
+      });
     }
-    return true;
-  });
 
-  const envAgent: Agent = {
-    id: ENV_AGENT_ID,
-    name: existingEnv?.name || 'Default Agent',
-    url: env.url,
-    token: env.token,
-    source: 'env',
-    location: existingEnv?.location || 'on-site',
-    number: existingEnv?.number || 1,
-    status: existingEnv?.status || 'checking',
-    description: existingEnv?.description,
-    tags: existingEnv?.tags,
-    lastSeen: existingEnv?.lastSeen,
-  };
+    // Migrate selected agent
+    const selectedId = localStorage.getItem(LEGACY_SELECTED_KEY);
+    if (selectedId) {
+      await fetch(`${API_BASE}/selected`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedId }),
+      });
+    }
 
-  return [envAgent, ...nonEnv];
-}
-
-function getSyncedAgents(): Agent[] {
-  const current = store.getAll();
-  const synced = syncAgentsWithEnvironment(current);
-
-  if (JSON.stringify(current) !== JSON.stringify(synced)) {
-    store.setAll(synced);
+    // Mark migration complete and clean up
+    localStorage.setItem(MIGRATION_DONE_KEY, '1');
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_SELECTED_KEY);
+    console.log('[agent-store] Migrated agents from localStorage to server');
+  } catch (err) {
+    console.error('[agent-store] Migration failed:', err);
   }
-
-  return synced;
 }
 
-const store = createLocalStore<Agent>(STORAGE_KEY, getDefaultAgents);
+// Run migration on module load
+migrateFromLocalStorage().catch(() => {});
+
+// --- Synchronous store interface (uses cache, triggers async refresh) ---
+
+// Initialize cache with a synchronous fetch on first access
+let initPromise: Promise<void> | null = null;
+
+function ensureInit(): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      try {
+        cachedAgents = await fetchAgents();
+        const selected = await fetchSelectedAgent();
+        cachedSelectedId = selected?.id ?? null;
+      } catch {
+        cachedAgents = [];
+        cachedSelectedId = null;
+      }
+    })();
+  }
+  return initPromise;
+}
+
+// Kick off init immediately
+ensureInit();
 
 export const agentStore = {
-  getAgents: getSyncedAgents,
+  // Synchronous — returns cached data (may be stale on first call)
+  getAgents(): Agent[] {
+    return cachedAgents ?? [];
+  },
 
   addAgent(agent: Omit<Agent, 'id' | 'number'>): Agent {
-    const agents = getSyncedAgents();
-    const nextNumber = Math.max(0, ...agents.map((a) => a.number)) + 1;
-    const newAgent: Agent = {
+    // Optimistically create a placeholder, then sync
+    const placeholder: Agent = {
       ...agent,
-      id: `agent-${String(nextNumber).padStart(3, '0')}`,
-      number: nextNumber,
+      id: `agent-pending-${Date.now()}`,
+      number: (cachedAgents?.length ?? 0) + 1,
       source: 'user',
       status: 'checking',
     };
-    store.setAll([...agents, newAgent]);
-    return newAgent;
+
+    // Fire async API call
+    fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(agent),
+    })
+      .then(res => res.json())
+      .then((created: Agent) => {
+        // Replace placeholder in cache
+        if (cachedAgents) {
+          const idx = cachedAgents.findIndex(a => a.id === placeholder.id);
+          if (idx >= 0) {
+            cachedAgents[idx] = created;
+          } else {
+            cachedAgents.push(created);
+          }
+        }
+      })
+      .catch(err => console.error('[agent-store] addAgent failed:', err));
+
+    // Add placeholder to cache immediately
+    if (cachedAgents) {
+      cachedAgents.push(placeholder);
+    }
+
+    return placeholder;
   },
 
   updateAgent(id: string, updates: Partial<Agent>): Agent | null {
-    const existing = store.getById(id);
-    if (!existing) return null;
-    if (isEnvironmentAgent(existing)) {
-      return existing;
-    }
-    return store.update(id, { ...updates, source: 'user' });
+    if (!cachedAgents) return null;
+    const idx = cachedAgents.findIndex(a => a.id === id);
+    if (idx === -1) return null;
+
+    const agent = cachedAgents[idx];
+    if (agent.source === 'env' && !('status' in updates)) return agent;
+
+    // Optimistic local update
+    cachedAgents[idx] = { ...agent, ...updates };
+
+    // Async API call
+    fetch(API_BASE, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    }).catch(err => console.error('[agent-store] updateAgent failed:', err));
+
+    return cachedAgents[idx];
   },
 
   deleteAgent(id: string): void {
-    const existing = store.getById(id);
-    if (existing && isEnvironmentAgent(existing)) {
-      return;
+    if (!cachedAgents) return;
+    const agent = cachedAgents.find(a => a.id === id);
+    if (!agent || agent.source === 'env') return;
+
+    // Optimistic removal
+    cachedAgents = cachedAgents.filter(a => a.id !== id);
+
+    if (cachedSelectedId === id) {
+      cachedSelectedId = cachedAgents[0]?.id ?? null;
+      agentStore.setSelectedAgentId(cachedSelectedId);
     }
-    store.remove(id);
-    if (agentStore.getSelectedAgentId() === id) {
-      const remaining = getSyncedAgents();
-      agentStore.setSelectedAgentId(remaining[0]?.id ?? null);
-    }
+
+    fetch(`${API_BASE}?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .catch(err => console.error('[agent-store] deleteAgent failed:', err));
   },
 
   getSelectedAgentId(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem(SELECTED_KEY);
+    return cachedSelectedId;
   },
 
   setSelectedAgentId(id: string | null): void {
-    if (typeof window === 'undefined') return;
-    if (id) {
-      localStorage.setItem(SELECTED_KEY, id);
-    } else {
-      localStorage.removeItem(SELECTED_KEY);
-    }
+    cachedSelectedId = id;
+
+    fetch(`${API_BASE}/selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).catch(err => console.error('[agent-store] setSelectedAgentId failed:', err));
   },
 
   getSelectedAgent(): Agent | null {
-    const selectedId = agentStore.getSelectedAgentId();
-    const agents = getSyncedAgents();
-    if (!selectedId) return agents[0] ?? null;
-    return agents.find((a) => a.id === selectedId) ?? agents[0] ?? null;
+    const agents = agentStore.getAgents();
+    if (cachedSelectedId) {
+      const found = agents.find(a => a.id === cachedSelectedId);
+      if (found) return found;
+    }
+    return agents[0] ?? null;
   },
 
   getAgentById(id: string): Agent | null {
-    return getSyncedAgents().find((agent) => agent.id === id) ?? null;
+    return agentStore.getAgents().find(a => a.id === id) ?? null;
+  },
+
+  // Async refresh from server — call after mutations for consistency
+  async refresh(): Promise<Agent[]> {
+    cachedAgents = await fetchAgents();
+    const selected = await fetchSelectedAgent();
+    cachedSelectedId = selected?.id ?? null;
+    return cachedAgents;
   },
 };

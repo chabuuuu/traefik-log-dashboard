@@ -1,111 +1,108 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { agentStore } from './agent-store';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const AGENTS_KEY = 'tld-agents';
+// Prevent migration from running during tests
+const storageMock: Record<string, string> = { 'tld-migration-done': '1' };
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: (key: string) => storageMock[key] ?? null,
+    setItem: (key: string, value: string) => { storageMock[key] = value; },
+    removeItem: (key: string) => { delete storageMock[key]; },
+    clear: () => { Object.keys(storageMock).forEach(k => delete storageMock[k]); },
+    get length() { return Object.keys(storageMock).length; },
+    key: (i: number) => Object.keys(storageMock)[i] ?? null,
+  },
+  configurable: true,
+  writable: true,
+});
 
-type StorageMap = Record<string, string>;
-
-function createStorageMock(initial: StorageMap = {}): Storage {
-  const data: StorageMap = { ...initial };
-  return {
-    get length() {
-      return Object.keys(data).length;
-    },
-    clear() {
-      Object.keys(data).forEach((key) => delete data[key]);
-    },
-    getItem(key: string) {
-      return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null;
-    },
-    key(index: number) {
-      return Object.keys(data)[index] ?? null;
-    },
-    removeItem(key: string) {
-      delete data[key];
-    },
-    setItem(key: string, value: string) {
-      data[key] = value;
-    },
-  };
+function mockFetchResponses(...responses: Array<{ ok: boolean; json: () => Promise<unknown> }>) {
+  const fn = vi.fn();
+  for (const r of responses) {
+    fn.mockResolvedValueOnce(r);
+  }
+  // Default fallback for any extra calls (e.g. init)
+  fn.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+  globalThis.fetch = fn;
+  return fn;
 }
 
-describe('agentStore env sync', () => {
+describe('agentStore API-backed', () => {
   beforeEach(() => {
-    const storage = createStorageMock();
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: storage,
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(globalThis, 'window', {
-      value: { __DASHBOARD_CONFIG__: {} },
-      configurable: true,
-      writable: true,
-    });
+    vi.resetModules();
   });
 
-  it('replaces legacy default agent with env-backed default agent', () => {
-    window.__DASHBOARD_CONFIG__ = {
-      defaultAgentUrl: 'http://env-agent:5000',
-      defaultAgentToken: 'env-token',
-    };
+  it('getAgents returns cached agents after refresh', async () => {
+    const agents = [
+      { id: 'agent-env-default', name: 'Default Agent', url: 'http://agent:5000', token: 't', source: 'env', location: 'on-site', number: 0, status: 'checking' },
+    ];
 
-    localStorage.setItem(
-      AGENTS_KEY,
-      JSON.stringify([
-        {
-          id: 'agent-001',
-          name: 'Default Agent',
-          url: 'http://old-agent:5000',
-          token: 'old-token',
-          location: 'on-site',
-          number: 1,
-          status: 'checking',
-        },
-      ])
+    // init calls: fetchAgents + fetchSelectedAgent, then refresh calls: fetchAgents + fetchSelectedAgent
+    mockFetchResponses(
+      { ok: true, json: () => Promise.resolve([]) },           // init fetchAgents
+      { ok: true, json: () => Promise.resolve(null) },         // init fetchSelectedAgent
+      { ok: true, json: () => Promise.resolve(agents) },       // refresh fetchAgents
+      { ok: true, json: () => Promise.resolve(agents[0]) },    // refresh fetchSelectedAgent
     );
 
-    const agents = agentStore.getAgents();
+    const { agentStore } = await import('./agent-store');
+    const result = await agentStore.refresh();
 
-    expect(agents).toHaveLength(1);
-    expect(agents[0].id).toBe('agent-env-default');
-    expect(agents[0].source).toBe('env');
-    expect(agents[0].url).toBe('http://env-agent:5000');
-    expect(agents[0].token).toBe('env-token');
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('agent-env-default');
+    expect(result[0].source).toBe('env');
   });
 
-  it('does not allow deleting env-backed default agent', () => {
-    window.__DASHBOARD_CONFIG__ = {
-      defaultAgentUrl: 'http://env-agent:5000',
-      defaultAgentToken: 'env-token',
-    };
+  it('does not allow deleting env-backed agent', async () => {
+    const agents = [
+      { id: 'agent-env-default', name: 'Default Agent', url: 'http://agent:5000', token: 't', source: 'env', location: 'on-site', number: 0, status: 'online' },
+    ];
 
-    const beforeDelete = agentStore.getAgents();
-    expect(beforeDelete.some((agent) => agent.id === 'agent-env-default')).toBe(true);
+    mockFetchResponses(
+      { ok: true, json: () => Promise.resolve(agents) },       // init fetchAgents
+      { ok: true, json: () => Promise.resolve(agents[0]) },    // init fetchSelectedAgent
+      { ok: true, json: () => Promise.resolve(agents) },       // refresh fetchAgents
+      { ok: true, json: () => Promise.resolve(agents[0]) },    // refresh fetchSelectedAgent
+    );
+
+    const { agentStore } = await import('./agent-store');
+    await agentStore.refresh();
 
     agentStore.deleteAgent('agent-env-default');
 
-    const afterDelete = agentStore.getAgents();
-    expect(afterDelete.some((agent) => agent.id === 'agent-env-default')).toBe(true);
+    // env agent should still exist in cache
+    const remaining = agentStore.getAgents();
+    expect(remaining.some(a => a.id === 'agent-env-default')).toBe(true);
   });
 
-  it('creates env-backed same-origin agent when token is provided without url', () => {
-    Object.defineProperty(globalThis, 'window', {
-      value: {
-        __DASHBOARD_CONFIG__: {
-          defaultAgentToken: 'env-token-only',
-        },
-        location: { origin: 'https://dashboard.example.com' },
-      },
-      configurable: true,
-      writable: true,
+  it('addAgent adds to cache and fires POST', async () => {
+    const mockFn = mockFetchResponses(
+      { ok: true, json: () => Promise.resolve([]) },           // init fetchAgents
+      { ok: true, json: () => Promise.resolve(null) },         // init fetchSelectedAgent
+      { ok: true, json: () => Promise.resolve([]) },           // refresh fetchAgents
+      { ok: true, json: () => Promise.resolve(null) },         // refresh fetchSelectedAgent
+      { ok: true, json: () => Promise.resolve({ id: 'agent-001', name: 'Test', url: 'http://test:5000', token: '', source: 'user', location: 'on-site', number: 1, status: 'checking' }) }, // POST addAgent
+    );
+
+    const { agentStore } = await import('./agent-store');
+    await agentStore.refresh();
+
+    const created = agentStore.addAgent({
+      name: 'Test',
+      url: 'http://test:5000',
+      token: '',
+      source: 'user',
+      location: 'on-site',
+      status: 'checking',
     });
 
-    const agents = agentStore.getAgents();
-    expect(agents).toHaveLength(1);
-    expect(agents[0].id).toBe('agent-env-default');
-    expect(agents[0].source).toBe('env');
-    expect(agents[0].url).toBe('https://dashboard.example.com');
-    expect(agents[0].token).toBe('env-token-only');
+    expect(created.name).toBe('Test');
+    expect(agentStore.getAgents()).toHaveLength(1);
+
+    // Wait for async POST to fire
+    await new Promise(r => setTimeout(r, 10));
+
+    // Verify POST was fired
+    const postCall = mockFn.mock.calls.find(c => c[1]?.method === 'POST' && c[0] === '/api/dashboard/agents');
+    expect(postCall).toBeDefined();
   });
 });

@@ -38,6 +38,13 @@ const PARAMETER_OPTIONS: Array<{
     hasThreshold: true,
   },
   {
+    parameter: 'request_rate',
+    label: 'Request Rate',
+    description: 'Requests per second over the snapshot window',
+    hasLimit: false,
+    hasThreshold: true,
+  },
+  {
     parameter: 'error_rate',
     label: 'Error Rate',
     description: 'Percentage of failed requests',
@@ -149,6 +156,9 @@ export default function AlertRuleFormModal({
     webhook_ids: [] as string[],
     trigger_type: 'interval' as AlertTriggerType,
     interval: '1h' as AlertInterval,
+    schedule_time_utc: '09:00',
+    snapshot_window_minutes: 5,
+    condition_operator: 'any' as 'any' | 'all',
     parameters: [] as AlertParameterConfig[],
   });
 
@@ -178,6 +188,9 @@ export default function AlertRuleFormModal({
           webhook_ids: alert.webhook_ids,
           trigger_type: alert.trigger_type,
           interval: alert.interval || '1h',
+          schedule_time_utc: alert.schedule_time_utc || '09:00',
+          snapshot_window_minutes: alert.snapshot_window_minutes || (alert.trigger_type === 'daily_summary' ? 1440 : 5),
+          condition_operator: alert.condition_operator || 'any',
           parameters: alert.parameters,
         });
       } else {
@@ -189,6 +202,9 @@ export default function AlertRuleFormModal({
           webhook_ids: [],
           trigger_type: 'interval',
           interval: '1h',
+          schedule_time_utc: '09:00',
+          snapshot_window_minutes: 5,
+          condition_operator: 'any',
           parameters: initializeParameters(),
         });
       }
@@ -212,9 +228,20 @@ export default function AlertRuleFormModal({
       newErrors.interval = 'Interval is required for interval-based alerts';
     }
 
+    if (formData.trigger_type === 'daily_summary' && !formData.schedule_time_utc) {
+      newErrors.schedule_time_utc = 'Daily summary time is required';
+    }
+
     const enabledParams = formData.parameters.filter(p => p.enabled);
     if (enabledParams.length === 0) {
       newErrors.parameters = 'At least one parameter must be enabled';
+    }
+
+    if (
+      formData.trigger_type === 'threshold' &&
+      !enabledParams.some((param) => typeof param.threshold === 'number')
+    ) {
+      newErrors.parameters = 'Threshold alerts require at least one threshold value';
     }
 
     setErrors(newErrors);
@@ -387,6 +414,17 @@ export default function AlertRuleFormModal({
                       <Badge variant="secondary">Threshold</Badge>
                       <span className="ml-2 text-sm text-muted-foreground">When metric exceeds value</span>
                     </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        value="daily_summary"
+                        checked={formData.trigger_type === 'daily_summary'}
+                        onChange={e => handleInputChange('trigger_type', e.target.value as AlertTriggerType)}
+                        className="mr-2"
+                      />
+                      <Badge variant="outline">Daily Summary</Badge>
+                      <span className="ml-2 text-sm text-muted-foreground">Once per day report</span>
+                    </label>
                   </div>
                 </div>
 
@@ -407,6 +445,72 @@ export default function AlertRuleFormModal({
                         </option>
                       ))}
                     </select>
+                  </div>
+                )}
+
+                {formData.trigger_type === 'daily_summary' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Daily Summary Time (UTC) <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.schedule_time_utc}
+                      onChange={e => handleInputChange('schedule_time_utc', e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
+                    />
+                    {errors.schedule_time_utc && (
+                      <p className="mt-1 text-sm text-destructive">{errors.schedule_time_utc}</p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Snapshot Window (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={formData.snapshot_window_minutes}
+                    onChange={e => handleInputChange('snapshot_window_minutes', Math.max(1, parseInt(e.target.value, 10) || 5))}
+                    className="w-full px-3 py-2 border-2 border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Metrics are aggregated for this window before sending an alert.
+                  </p>
+                </div>
+
+                {formData.trigger_type === 'threshold' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Threshold Condition Operator
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          value="any"
+                          checked={formData.condition_operator === 'any'}
+                          onChange={e => handleInputChange('condition_operator', e.target.value as 'any' | 'all')}
+                          className="mr-2"
+                        />
+                        <Badge variant="default">Any</Badge>
+                        <span className="ml-2 text-sm text-muted-foreground">Trigger when any threshold is exceeded</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          value="all"
+                          checked={formData.condition_operator === 'all'}
+                          onChange={e => handleInputChange('condition_operator', e.target.value as 'any' | 'all')}
+                          className="mr-2"
+                        />
+                        <Badge variant="secondary">All</Badge>
+                        <span className="ml-2 text-sm text-muted-foreground">Trigger only when all thresholds are exceeded</span>
+                      </label>
+                    </div>
                   </div>
                 )}
 
@@ -572,7 +676,9 @@ export default function AlertRuleFormModal({
                                       step="0.1"
                                       value={param.threshold || ''}
                                       onChange={e => updateParameter(option.parameter, {
-                                        threshold: parseFloat(e.target.value) || undefined
+                                        threshold: e.target.value === ''
+                                          ? undefined
+                                          : Number.parseFloat(e.target.value)
                                       })}
                                       placeholder="e.g., 5.0"
                                       className="w-24 px-2 py-1 border-2 border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"

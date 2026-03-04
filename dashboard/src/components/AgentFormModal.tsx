@@ -16,11 +16,6 @@ interface AgentFormModalProps {
 export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModalProps) {
   const { addAgent, updateAgent } = useAgents();
   const [errors, setErrors] = useState<string[]>([]);
-  const sameOrigin =
-    typeof window !== 'undefined' && window.location?.origin
-      ? window.location.origin
-      : 'http://localhost:5000';
-  
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -34,7 +29,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
     if (agent) {
       setFormData({
         name: agent.name,
-        url: agent.url,
+        url: agent.configuredUrl || agent.url,
         token: agent.token,
         location: agent.location,
         description: agent.description || '',
@@ -43,7 +38,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
     } else {
       setFormData({
         name: '',
-        url: sameOrigin,
+        url: '',
         token: '',
         location: 'on-site',
         description: '',
@@ -51,15 +46,21 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
       });
     }
     setErrors([]);
-  }, [agent, isOpen, sameOrigin]);
+  }, [agent, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrors([]);
 
+    // Normalize address: store original as configuredUrl, prepend http:// for API use
+    const rawAddress = formData.url.trim();
+    const hasProtocol = /^https?:\/\//i.test(rawAddress);
+    const effectiveUrl = hasProtocol ? rawAddress : `http://${rawAddress}`;
+
     const agentData = {
       name: formData.name.trim(),
-      url: formData.url.trim(),
+      url: effectiveUrl,
+      configuredUrl: rawAddress,
       token: formData.token.trim(),
       location: formData.location,
       description: formData.description.trim() || undefined,
@@ -69,7 +70,8 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
         .filter(Boolean),
     };
 
-    const validation = AgentConfigManager.validateAgent(agentData);
+    // Validate with raw address (before protocol normalization)
+    const validation = AgentConfigManager.validateAgent({ ...agentData, url: rawAddress });
     if (!validation.valid) {
       setErrors(validation.errors);
       return;
@@ -153,21 +155,21 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
             </p>
           </div>
 
-          {/* Agent URL */}
+          {/* Agent Address */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Agent URL *
+              Agent Address *
             </label>
             <input
-              type="url"
+              type="text"
               value={formData.url}
               onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-              placeholder="http://localhost:3000"
+              placeholder="traefik-agent:5000 or 192.168.1.100:5000 or https://agent.example.com"
               className="w-full px-4 py-2 border border-input rounded-lg bg-card text-foreground focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
               required
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              The base URL where the agent is running (include http:// or https://)
+              Container name:port, IP:port, or full URL where the agent is running
             </p>
           </div>
 

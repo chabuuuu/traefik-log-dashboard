@@ -23,10 +23,12 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [agents, setAgents] = useState<Agent[]>(() => agentStore.getAgents());
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(() => agentStore.getSelectedAgent());
 
-  // Sync from localStorage on mount
+  // Initial async load from server
   useEffect(() => {
-    setAgents(agentStore.getAgents());
-    setSelectedAgent(agentStore.getSelectedAgent());
+    agentStore.refresh().then(() => {
+      setAgents(agentStore.getAgents());
+      setSelectedAgent(agentStore.getSelectedAgent());
+    });
   }, []);
 
   // Keep shared API client aligned with the active agent so all hooks
@@ -40,8 +42,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   }, [selectedAgent]);
 
   const refreshAgents = useCallback(() => {
-    setAgents(agentStore.getAgents());
-    setSelectedAgent(agentStore.getSelectedAgent());
+    agentStore.refresh().then(() => {
+      setAgents(agentStore.getAgents());
+      setSelectedAgent(agentStore.getSelectedAgent());
+    });
   }, []);
 
   const selectAgent = useCallback((id: string) => {
@@ -56,6 +60,12 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const addAgent = useCallback((agent: Omit<Agent, 'id' | 'number'>): Agent => {
     const newAgent = agentStore.addAgent(agent);
     setAgents(agentStore.getAgents());
+
+    // Refresh from server to get the real ID
+    agentStore.refresh().then(() => {
+      setAgents(agentStore.getAgents());
+    });
+
     toast.success('Agent added successfully');
     return newAgent;
   }, []);
@@ -103,42 +113,23 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setAgents(agentStore.getAgents());
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      // Use server-side status check — this can reach internal Docker URLs
+      const response = await fetch('/api/dashboard/agents/check-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
 
-      try {
-        // Directly check the agent's status endpoint
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (agent.token) {
-          headers['Authorization'] = `Bearer ${agent.token}`;
-        }
+      const result = await response.json();
+      const isOnline = result.online === true;
 
-        const response = await fetch(`${agent.url}/api/logs/status`, {
-          headers,
-          signal: controller.signal,
-        });
+      // Refresh from server to get updated status
+      await agentStore.refresh();
+      setAgents(agentStore.getAgents());
 
-        clearTimeout(timeoutId);
-
-        const isOnline = response.ok;
-
-        agentStore.updateAgent(id, {
-          status: isOnline ? 'online' : 'offline',
-          lastSeen: isOnline ? new Date() : undefined,
-        });
-        setAgents(agentStore.getAgents());
-
-        return isOnline;
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
-      }
+      return isOnline;
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.warn(`Agent ${id} status check timeout`);
-      } else {
-        console.error(`Agent ${id} status check failed:`, error);
-      }
+      console.error(`Agent ${id} status check failed:`, error);
 
       agentStore.updateAgent(id, { status: 'offline' });
       setAgents(agentStore.getAgents());

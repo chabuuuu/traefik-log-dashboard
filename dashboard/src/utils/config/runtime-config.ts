@@ -9,6 +9,7 @@ export interface RuntimeConfig {
   themeTokens?: Record<string, string>;
   defaultAgentUrl?: string;
   defaultAgentToken?: string;
+  configuredAgentUrl?: string;
 }
 
 const buildTimeFallback: RuntimeConfig = {

@@ -1,6 +1,6 @@
 // Webhook and Alerting Types
 
-export type WebhookType = 'discord' | 'telegram';
+export type WebhookType = 'discord' | 'telegram' | 'webhook';
 
 export interface Webhook {
   id: string;
@@ -28,6 +28,7 @@ export type AlertParameter =
   | 'error_rate'
   | 'response_time'
   | 'request_count'
+  | 'request_rate'
   | 'top_request_addresses'
   | 'top_client_ips';
 
@@ -41,9 +42,11 @@ export interface AlertParameterConfig {
 export type AlertTriggerType =
   | 'interval' // Periodic alerts at fixed intervals
   | 'threshold' // Trigger when a metric crosses a threshold
-  | 'event'; // Trigger on specific events
+  | 'daily_summary'; // Trigger once per day at a configured time
 
 export type AlertInterval = '5m' | '15m' | '30m' | '1h' | '6h' | '12h' | '24h';
+
+export type AlertConditionOperator = 'any' | 'all';
 
 export interface AlertRule {
   id: string;
@@ -54,7 +57,12 @@ export interface AlertRule {
   webhook_ids: string[]; // Multiple webhooks can be notified
   trigger_type: AlertTriggerType;
   interval?: AlertInterval; // For interval-based alerts
+  schedule_time_utc?: string; // HH:mm (UTC), used by daily_summary
+  snapshot_window_minutes: number; // Aggregation window used for snapshots
+  condition_operator: AlertConditionOperator; // How multi-threshold rules are evaluated
   parameters: AlertParameterConfig[]; // Which metrics to include in notification
+  last_triggered_at?: string;
+  last_evaluated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -132,5 +140,6 @@ export interface AlertData {
       p99: number;
     };
     request_count?: number;
+    request_rate?: number;
   };
 }

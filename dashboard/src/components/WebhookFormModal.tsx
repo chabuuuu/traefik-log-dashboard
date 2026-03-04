@@ -75,6 +75,8 @@ export default function WebhookFormModal({
           if (!url.hostname.includes('api.telegram.org')) {
             newErrors.url = 'Telegram webhook URL must be from api.telegram.org';
           }
+        } else if (!['http:', 'https:'].includes(url.protocol)) {
+          newErrors.url = 'Webhook URL must use http:// or https://';
         }
       } catch {
         newErrors.url = 'Invalid URL format';
@@ -180,6 +182,16 @@ export default function WebhookFormModal({
                 />
                 <Badge variant="secondary">Telegram</Badge>
               </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  value="webhook"
+                  checked={formData.type === 'webhook'}
+                  onChange={e => handleInputChange('type', e.target.value as WebhookType)}
+                  className="mr-2"
+                />
+                <Badge variant="outline">Generic</Badge>
+              </label>
             </div>
           </div>
 
@@ -195,7 +207,9 @@ export default function WebhookFormModal({
               placeholder={
                 formData.type === 'discord'
                   ? 'https://discord.com/api/webhooks/...'
-                  : 'https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>'
+                  : formData.type === 'telegram'
+                    ? 'https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>'
+                    : 'https://example.com/incoming-alerts'
               }
               className={`w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm bg-card text-foreground ${
                 errors.url ? 'border-destructive' : 'border-border'
@@ -209,9 +223,13 @@ export default function WebhookFormModal({
                 <>
                   Go to Server Settings → Integrations → Webhooks → New Webhook
                 </>
-              ) : (
+              ) : formData.type === 'telegram' ? (
                 <>
                   Message @BotFather on Telegram to create a bot and get the token
+                </>
+              ) : (
+                <>
+                  Use any endpoint that accepts JSON POST payloads
                 </>
               )}
             </p>

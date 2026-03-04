@@ -179,12 +179,23 @@ export class AgentConfigManager {
     }
 
     if (!agent.url?.trim()) {
-      errors.push('Agent URL is required');
+      errors.push('Agent address is required');
     } else {
-      try {
-        new URL(agent.url);
-      } catch {
-        errors.push('Agent URL is invalid');
+      const trimmed = agent.url.trim();
+      // Accept: full URLs, host:port, IP:port, container-name:port
+      const hasProtocol = /^https?:\/\//i.test(trimmed);
+      if (hasProtocol) {
+        try {
+          new URL(trimmed);
+        } catch {
+          errors.push('Agent address is not a valid URL');
+        }
+      } else {
+        // Bare address: must have at least a hostname or IP
+        const addressPattern = /^[a-zA-Z0-9._-]+(:\d+)?(\/.*)?$/;
+        if (!addressPattern.test(trimmed)) {
+          errors.push('Agent address is invalid. Use host:port, IP:port, or a full URL');
+        }
       }
     }
 

@@ -287,9 +287,9 @@ export default function AgentSettingsPage() {
                       {/* Details */}
                       <div className="space-y-2 mb-4">
                         <div className="text-sm">
-                          <span className="text-muted-foreground">URL:</span>
+                          <span className="text-muted-foreground">Address:</span>
                           <code className="ml-2 bg-muted px-2 py-1 rounded text-xs">
-                            {agent.url}
+                            {agent.configuredUrl || agent.url}
                           </code>
                         </div>
                         {agent.description && (

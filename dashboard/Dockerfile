@@ -1,4 +1,4 @@
-# Stage 1: Build the Vite application
+# Stage 1: Build the Vite application + server
 FROM node:20-alpine AS build
 
 WORKDIR /app
@@ -6,7 +6,7 @@ WORKDIR /app
 # Copy package files first for better layer caching
 COPY package.json package-lock.json ./
 
-# Install dependencies
+# Install all dependencies (including dev for building)
 RUN npm ci
 
 # Copy source code
@@ -16,23 +16,35 @@ COPY . .
 ARG VITE_BASE_PATH=/
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 
-# Build the application
+# Build client (Vite) and server (TypeScript)
 RUN npm run build
 
-# Stage 2: Serve static assets + reverse proxy API with Nginx
-FROM nginx:alpine
+# Stage 2: Production Node.js runtime
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy built assets from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
+# Install only production dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-# Copy runtime scripts/config templates
+# Copy built client assets
+COPY --from=build /app/dist ./dist
+
+# Copy built server
+COPY --from=build /app/dist-server ./dist-server
+
+# Copy entrypoint
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 80
+# Create data directory for SQLite
+RUN mkdir -p /data
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV DATA_DIR=/data
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "dist-server/index.js"]

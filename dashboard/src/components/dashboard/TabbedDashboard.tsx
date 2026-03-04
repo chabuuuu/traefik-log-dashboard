@@ -4,7 +4,6 @@ import { lazy, Suspense, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TraefikLog } from '@/utils/types';
-import { useMetricsProcessing } from '@/hooks/useMetricsProcessing';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
 import { useSystemStats } from '@/hooks/useSystemStats';
 import { calculateMetrics, getEmptyMetrics } from '@/utils/utils/metric-calculator';
@@ -74,11 +73,6 @@ export default function TabbedDashboard({
     }
     return calculateMetrics(sortedLogs, geoLocations);
   }, [sortedLogs, geoLocations]);
-
-  // Process metrics for alerts and snapshots
-  useMetricsProcessing(agentId || null, agentName || null, metrics, logs, {
-    enabled: !demoMode,
-  });
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
