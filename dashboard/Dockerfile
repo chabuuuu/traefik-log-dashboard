@@ -23,10 +23,12 @@ RUN npm run build
 FROM node:20-alpine
 
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Install only production dependencies
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# Install only runtime server dependencies (no frontend bundle deps)
+COPY package.runtime.json ./package.json
+RUN npm install --omit=dev --omit=optional --no-audit --no-fund \
+  && npm cache clean --force
 
 # Copy built client assets
 COPY --from=build /app/dist ./dist

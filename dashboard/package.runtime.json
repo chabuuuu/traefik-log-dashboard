@@ -1,0 +1,11 @@
+{
+  "name": "traefik-log-dashboard-runtime",
+  "private": true,
+  "version": "2.5.0",
+  "description": "Runtime-only dependencies for Traefik Log Dashboard server",
+  "dependencies": {
+    "better-sqlite3": "11.10.0",
+    "express": "4.22.1",
+    "http-proxy-middleware": "3.0.5"
+  }
+}
