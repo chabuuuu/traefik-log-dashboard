@@ -6,6 +6,7 @@ import { useTabVisibility } from './useTabVisibility';
 import { buildLogKey, createLogBuffer, dedupeLogs } from '@/utils/utils/log-batching';
 import { getNextLogCursor } from '@/utils/utils/log-cursor';
 import { useConfig } from '@/utils/contexts/ConfigContext';
+import { useAgents } from '@/utils/contexts/AgentContext';
 
 const STREAM_BATCH_SIZE = 250;
 const STREAM_FLUSH_INTERVAL = 350;
@@ -14,6 +15,7 @@ const STALE_CONNECTION_MS = 45000;
 
 export function useLogFetcher() {
   const { config } = useConfig();
+  const { selectedAgent } = useAgents();
   const [logs, setLogs] = useState<TraefikLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,27 @@ export function useLogFetcher() {
   const isTabVisible = useTabVisibility();
 
   useEffect(() => {
+    const selectedAgentID = selectedAgent?.id;
+    const selectedAgentName = selectedAgent?.name ?? null;
+
+    setLogs([]);
+    setConnected(false);
+    setLastUpdate(null);
+    setError(null);
+    setAgentId(selectedAgentID ?? null);
+    setAgentName(selectedAgentName);
+    setLoading(true);
+    positionRef.current = -1;
+    isFirstFetch.current = true;
+    seenLogsRef.current.clear();
+    lastSuccessRef.current = null;
+
+    if (!selectedAgentID) {
+      setLoading(false);
+      setError('No agent selected or available');
+      return;
+    }
+
     pollDelayRef.current = config.refreshIntervalMs;
     let isMounted = true;
     let pollTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -116,11 +139,17 @@ export function useLogFetcher() {
 
     const pollLogs = async () => {
       if (isPaused || !isTabVisible || !isMounted) return;
+      if (!selectedAgentID) return;
 
       const controller = addController();
       try {
         const position = positionRef.current ?? -1;
-        const data = await apiClient.getAccessLogs(position, 1000, { signal: controller.signal });
+        const data = await apiClient.getAccessLogs({
+          agentId: selectedAgentID,
+          position,
+          lines: 1000,
+          signal: controller.signal,
+        });
         if (!isMounted) return;
 
         if (isFirstFetch.current && data.agent) {
@@ -161,10 +190,13 @@ export function useLogFetcher() {
     };
 
     const startStreaming = async () => {
+      if (!selectedAgentID) {
+        return;
+      }
       const controller = addController();
       try {
         setLoading(true);
-        for await (const line of apiClient.streamAccessLogs({ signal: controller.signal })) {
+        for await (const line of apiClient.streamAccessLogs({ agentId: selectedAgentID, signal: controller.signal })) {
           if (!isMounted) return;
           if (isPaused || !isTabVisible) {
             controller.abort();
@@ -203,7 +235,7 @@ export function useLogFetcher() {
       if (pollTimeout) clearTimeout(pollTimeout);
       if (staleInterval) clearInterval(staleInterval);
     };
-  }, [config.maxLogsDisplay, config.refreshIntervalMs, isPaused, isTabVisible, maxSeenLogs]);
+  }, [config.maxLogsDisplay, config.refreshIntervalMs, isPaused, isTabVisible, maxSeenLogs, selectedAgent?.id, selectedAgent?.name]);
 
   return {
     logs,

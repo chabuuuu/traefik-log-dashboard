@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '@/utils/api-client';
 import { useTabVisibility } from './useTabVisibility';
 import { SystemStatsResponse } from '@/utils/types';
+import { useAgents } from '@/utils/contexts/AgentContext';
 
 export function useSystemStats(demoMode: boolean) {
   const [systemStats, setSystemStats] = useState<SystemStatsResponse | undefined>(undefined);
+  const { selectedAgent } = useAgents();
   
   // REDUNDANCY FIX: Use shared visibility hook
   const isTabVisible = useTabVisibility();
@@ -16,11 +18,16 @@ export function useSystemStats(demoMode: boolean) {
     async function fetchSystemStats() {
       // PERFORMANCE FIX: Don't fetch when demo mode or tab not visible
       if (demoMode || !isTabVisible) return;
+      if (!selectedAgent?.id) {
+        setSystemStats(undefined);
+        return;
+      }
 
       try {
-        // MEMORY LEAK FIX: Add abort signal support
-        // Note: getSystemResources needs to support abort signal, will be handled in API route
-        const data = await apiClient.getSystemResources();
+        const data = await apiClient.getSystemResources({
+          agentId: selectedAgent.id,
+          signal: abortController.signal,
+        });
         if (!isMounted) return;
 
         // Treat disabled monitoring as a non-error terminal state
@@ -50,7 +57,7 @@ export function useSystemStats(demoMode: boolean) {
       abortController.abort();
       clearInterval(interval);
     };
-  }, [demoMode, isTabVisible]);
+  }, [demoMode, isTabVisible, selectedAgent?.id]);
 
   return systemStats;
 }

@@ -7,56 +7,73 @@ import {
 } from './types';
 import { getBaseOrigin, withBasePath } from './utils/base-url';
 
+interface AgentRequestInput {
+  agentId: string;
+  signal?: AbortSignal;
+}
+
+interface AccessLogsRequestInput extends AgentRequestInput {
+  position?: number;
+  lines?: number;
+}
+
+interface ErrorLogsRequestInput extends AgentRequestInput {
+  position?: number;
+  lines?: number;
+}
+
+interface SingleLogRequestInput extends AgentRequestInput {
+  filename: string;
+  position?: number;
+  lines?: number;
+}
+
+interface FetchJSONInput {
+  endpoint: string;
+  options?: RequestInit;
+  timeoutMs?: number;
+  agentId?: string;
+}
+
 export class APIClient {
   private baseOrigin: string;
-  private authToken?: string;
 
-  constructor(baseURL?: string, authToken?: string) {
-    // Default to empty string to use same-origin unless a base domain is provided
+  constructor(baseURL?: string) {
     this.baseOrigin = (baseURL || getBaseOrigin()).replace(/\/$/, '');
-    this.authToken = authToken;
   }
 
-  private buildApiUrl(endpoint: string): string {
+  private buildApiURL(endpoint: string): string {
     const path = withBasePath(endpoint);
     return `${this.baseOrigin}${path}`;
   }
 
-  private async fetch<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async fetchJSON<T>(input: FetchJSONInput): Promise<T> {
+    const options = input.options ?? {};
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      // Add cache control headers to prevent stale data
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      ...(options.headers as Record<string, string> || {}),
+      Pragma: 'no-cache',
+      ...((options.headers as Record<string, string>) || {}),
     };
 
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
+    if (input.agentId) {
+      headers['X-Agent-Id'] = input.agentId;
     }
 
-    const url = this.buildApiUrl(endpoint);
-    // Add timestamp to prevent caching
+    const url = this.buildApiURL(input.endpoint);
     const urlWithTimestamp = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-
-    // FIX: Add timeout to prevent infinite hanging
-    // Use provided signal or create a new AbortController with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    const timeoutID = setTimeout(() => controller.abort(), input.timeoutMs ?? 15000);
 
-    // Combine signals if one was provided
     if (options.signal) {
-      options.signal.addEventListener('abort', () => controller.abort());
+      options.signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
 
     try {
       const response = await fetch(urlWithTimestamp, {
         ...options,
         headers,
-        cache: 'no-store', // Prevent browser caching
+        cache: 'no-store',
         signal: controller.signal,
       });
 
@@ -67,87 +84,78 @@ export class APIClient {
 
       return response.json();
     } finally {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutID);
     }
   }
 
-  /**
-   * Get agent status
-   */
-  async getStatus(): Promise<StatusResponse> {
-    return this.fetch<StatusResponse>('/api/logs/status');
-  }
-
-  /**
-   * Get access logs
-   */
-  async getAccessLogs(
-    position: number = 0,
-    lines: number = 1000,
-    options: { signal?: AbortSignal } = {}
-  ): Promise<LogsResponse> {
-    const params = new URLSearchParams({
-      position: position.toString(),
-      lines: lines.toString(),
+  async getStatus(input: AgentRequestInput): Promise<StatusResponse> {
+    return this.fetchJSON<StatusResponse>({
+      endpoint: '/api/logs/status',
+      agentId: input.agentId,
+      options: { signal: input.signal },
     });
-    return this.fetch<LogsResponse>(`/api/logs/access?${params}`, { signal: options.signal });
   }
 
-  /**
-   * Get error logs
-   */
-  async getErrorLogs(
-    position: number = 0,
-    lines: number = 100
-  ): Promise<LogsResponse> {
+  async getAccessLogs(input: AccessLogsRequestInput): Promise<LogsResponse> {
     const params = new URLSearchParams({
-      position: position.toString(),
-      lines: lines.toString(),
+      position: String(input.position ?? 0),
+      lines: String(input.lines ?? 1000),
     });
-    return this.fetch<LogsResponse>(`/api/logs/error?${params}`);
+
+    return this.fetchJSON<LogsResponse>({
+      endpoint: `/api/logs/access?${params}`,
+      agentId: input.agentId,
+      options: { signal: input.signal },
+    });
   }
 
-  /**
-   * Get specific log file
-   */
-  async getLog(
-    filename: string,
-    position: number = 0,
-    lines: number = 100
-  ): Promise<LogsResponse> {
+  async getErrorLogs(input: ErrorLogsRequestInput): Promise<LogsResponse> {
     const params = new URLSearchParams({
-      filename,
-      position: position.toString(),
-      lines: lines.toString(),
+      position: String(input.position ?? 0),
+      lines: String(input.lines ?? 100),
     });
-    return this.fetch<LogsResponse>(`/api/logs/get?${params}`);
+
+    return this.fetchJSON<LogsResponse>({
+      endpoint: `/api/logs/error?${params}`,
+      agentId: input.agentId,
+      options: { signal: input.signal },
+    });
   }
 
-  /**
-   * Get system resources
-   */
-  async getSystemResources(): Promise<SystemStatsResponse> {
-    return this.fetch<SystemStatsResponse>('/api/system/resources');
+  async getLog(input: SingleLogRequestInput): Promise<LogsResponse> {
+    const params = new URLSearchParams({
+      filename: input.filename,
+      position: String(input.position ?? 0),
+      lines: String(input.lines ?? 100),
+    });
+
+    return this.fetchJSON<LogsResponse>({
+      endpoint: `/api/logs/get?${params}`,
+      agentId: input.agentId,
+      options: { signal: input.signal },
+    });
   }
 
-  /**
-   * Stream access logs via SSE/fetch stream.
-   */
-  async *streamAccessLogs(options: { signal?: AbortSignal } = {}): AsyncGenerator<TraefikLog, void, unknown> {
+  async getSystemResources(input: AgentRequestInput): Promise<SystemStatsResponse> {
+    return this.fetchJSON<SystemStatsResponse>({
+      endpoint: '/api/system/resources',
+      agentId: input.agentId,
+      options: { signal: input.signal },
+    });
+  }
+
+  async *streamAccessLogs(input: AgentRequestInput): AsyncGenerator<TraefikLog, void, unknown> {
     const headers: Record<string, string> = {
       'Cache-Control': 'no-cache',
-      'Accept': 'text/event-stream',
+      Accept: 'text/event-stream',
+      'X-Agent-Id': input.agentId,
     };
 
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
-    }
-
-    const url = this.buildApiUrl('/api/logs/stream');
+    const url = this.buildApiURL('/api/logs/stream');
     const response = await fetch(url, {
       method: 'GET',
       headers,
-      signal: options.signal,
+      signal: input.signal,
       cache: 'no-store',
     });
 
@@ -169,15 +177,16 @@ export class APIClient {
         const events = buffer.split('\n\n');
         buffer = events.pop() || '';
 
-        for (const evt of events) {
-          const lines = evt.split('\n');
+        for (const eventChunk of events) {
+          const lines = eventChunk.split('\n');
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                yield JSON.parse(line.slice(6)) as TraefikLog;
-              } catch {
-                // Skip malformed JSON lines
-              }
+            if (!line.startsWith('data: ')) {
+              continue;
+            }
+            try {
+              yield JSON.parse(line.slice(6)) as TraefikLog;
+            } catch {
+              // Ignore malformed stream lines.
             }
           }
         }
@@ -187,40 +196,25 @@ export class APIClient {
     }
   }
 
-  /**
-   * Get log file sizes
-   */
-  async getLogSizes(): Promise<LogSizesResponse> {
-    return this.fetch<LogSizesResponse>('/api/system/logs');
+  async getLogSizes(input: AgentRequestInput): Promise<LogSizesResponse> {
+    return this.fetchJSON<LogSizesResponse>({
+      endpoint: '/api/system/logs',
+      agentId: input.agentId,
+      options: { signal: input.signal },
+    });
   }
 
-  /**
-   * Health check
-   */
-  async healthCheck(): Promise<boolean> {
+  async healthCheck(input: AgentRequestInput): Promise<boolean> {
     try {
-      await this.fetch('/api/logs/status');
+      await this.getStatus(input);
       return true;
     } catch {
       return false;
     }
   }
 
-  /**
-   * Set auth token
-   */
-  setAuthToken(token: string) {
-    this.authToken = token;
-  }
-
-  /**
-   * Set base URL
-   */
-  setBaseURL(url: string) {
+  setBaseURL(url: string): void {
     const normalized = url.replace(/\/$/, '');
-
-    // In secure browser contexts, never allow downgrading API calls to http://
-    // because that triggers mixed-content blocking.
     if (
       typeof window !== 'undefined' &&
       window.location.protocol === 'https:' &&
@@ -229,60 +223,52 @@ export class APIClient {
       this.baseOrigin = '';
       return;
     }
-
     this.baseOrigin = normalized;
   }
 
-  /**
- * Lookup locations for IP addresses using Dashboard's local GeoIP database
- * REFACTOR: Changed from calling agent to using local dashboard endpoint
- */
-async lookupLocations(ips: string[]): Promise<{
-  locations: Array<{
-    ipAddress: string;
-    country: string;
-    city?: string;
-    latitude?: number;
-    longitude?: number;
-  }>;
-  count?: number;
-}> {
-  // FIX: Add timeout to prevent infinite hanging
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  async lookupLocations(ips: string[]): Promise<{
+    locations: Array<{
+      ipAddress: string;
+      country: string;
+      city?: string;
+      latitude?: number;
+      longitude?: number;
+    }>;
+    count?: number;
+  }> {
+    const controller = new AbortController();
+    const timeoutID = setTimeout(() => controller.abort(), 10000);
 
-  try {
-    const response = await fetch(this.buildApiUrl('/api/location/lookup'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ips }),
-      signal: controller.signal,
-    });
+    try {
+      const response = await fetch(this.buildApiURL('/api/location/lookup'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ips }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`Location lookup failed: ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Location lookup failed: ${response.statusText}`);
+      }
+
+      return response.json();
+    } finally {
+      clearTimeout(timeoutID);
     }
+  }
 
-    return response.json();
-  } finally {
-    clearTimeout(timeoutId);
+  async getLocationStatus(): Promise<{
+    enabled: boolean;
+    available: boolean;
+    city_db: string;
+    country_db: string;
+  }> {
+    return this.fetchJSON({
+      endpoint: '/api/location/status',
+    });
   }
 }
 
-/**
- * Get location service status
- */
-async getLocationStatus(): Promise<{
-  enabled: boolean;
-  available: boolean;
-  city_db: string;
-  country_db: string;
-}> {
-  return this.fetch('/api/location/status');
-}
-}
-
-// Default client instance
 export const apiClient = new APIClient();

@@ -4,8 +4,6 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { Agent } from '../types/agent';
 import { toast } from 'sonner';
 import { agentStore } from '../stores/agent-store';
-import { apiClient } from '../api-client';
-import { getBaseOrigin } from '../utils/base-url';
 
 interface AgentContextType {
   agents: Agent[];
@@ -31,16 +29,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       setSelectedAgent(agentStore.getSelectedAgent());
     });
   }, []);
-
-  // Keep shared API client aligned with selected auth token.
-  // Requests stay same-origin so the dashboard server can proxy to internal agent URLs.
-  useEffect(() => {
-    if (!selectedAgent) {
-      return;
-    }
-    apiClient.setBaseURL(getBaseOrigin());
-    apiClient.setAuthToken(selectedAgent.token || '');
-  }, [selectedAgent]);
 
   const refreshAgents = useCallback(() => {
     agentStore.refresh().then(() => {
