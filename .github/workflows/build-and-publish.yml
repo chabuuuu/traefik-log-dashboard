@@ -1,65 +1,125 @@
-name: Build and Release
+name: Build and Publish
 
 on:
   push:
     branches:
       - main
       - dev-dashboard
+    tags:
+      - 'v*'
     paths:
       - 'agent/**'
       - 'dashboard/**'
       - 'cli/**'
-      - '.github/workflows/**'
-    tags:
-      - 'v*'
+      - 'docker-compose.yml'
+      - '.github/workflows/build-and-publish.yml'
   pull_request:
     branches:
       - main
+    paths:
+      - 'agent/**'
+      - 'dashboard/**'
+      - 'cli/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/build-and-publish.yml'
   workflow_dispatch:
     inputs:
       release_cli:
-        description: 'Release CLI binaries'
+        description: 'Build CLI binaries (and use in release if running on a v* tag)'
         required: false
         type: boolean
         default: false
+
+concurrency:
+  group: build-publish-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY_GHCR: ghcr.io
   REGISTRY_DOCKERHUB: docker.io
   GO_VERSION: '1.23'
-  NODE_VERSION: '20'
 
 jobs:
-  # Build and push Agent Docker image
-  build-agent:
+  prepare:
+    name: Detect Changed Areas
     runs-on: ubuntu-latest
+    outputs:
+      agent_changed: ${{ steps.changes.outputs.agent }}
+      dashboard_changed: ${{ steps.changes.outputs.dashboard }}
+      cli_changed: ${{ steps.changes.outputs.cli }}
+      compose_changed: ${{ steps.changes.outputs.compose }}
+      workflow_changed: ${{ steps.changes.outputs.workflow }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect file changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            agent:
+              - 'agent/**'
+            dashboard:
+              - 'dashboard/**'
+            cli:
+              - 'cli/**'
+            compose:
+              - 'docker-compose.yml'
+            workflow:
+              - '.github/workflows/build-and-publish.yml'
+
+  validate-compose:
+    name: Validate Compose
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose syntax
+        run: |
+          docker compose -f docker-compose.yml config > /tmp/compose.rendered.yml
+          echo "Validated docker-compose.yml"
+
+  build-agent:
+    name: Build Agent Image
+    runs-on: ubuntu-latest
+    needs: [prepare, validate-compose]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      needs.prepare.outputs.agent_changed == 'true' ||
+      needs.prepare.outputs.compose_changed == 'true' ||
+      needs.prepare.outputs.workflow_changed == 'true'
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_GHCR }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Login to DockerHub
+        if: github.event_name != 'pull_request' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_DOCKERHUB }}
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -72,57 +132,60 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value={{date 'YYYYMMDD'}}-{{sha}}
-          
-      - name: Build and push Agent
-        uses: docker/build-push-action@v5
+
+      - name: Build and push Agent image
+        uses: docker/build-push-action@v6
         with:
           context: ./agent
           file: ./agent/Dockerfile
+          pull: true
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=agent
           cache-to: type=gha,mode=max,scope=agent
-          build-args: |
-            VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp }}
 
-  # Build and push Dashboard Docker image
   build-dashboard:
+    name: Build Dashboard Image
     runs-on: ubuntu-latest
+    needs: [prepare, validate-compose]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      needs.prepare.outputs.dashboard_changed == 'true' ||
+      needs.prepare.outputs.compose_changed == 'true' ||
+      needs.prepare.outputs.workflow_changed == 'true'
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_GHCR }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Login to DockerHub
+        if: github.event_name != 'pull_request' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_DOCKERHUB }}
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -135,16 +198,15 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value={{date 'YYYYMMDD'}}-{{sha}}
-          
-      - name: Build and push Dashboard
-        uses: docker/build-push-action@v5
+
+      - name: Build and push Dashboard image
+        uses: docker/build-push-action@v6
         with:
           context: ./dashboard
           file: ./dashboard/Dockerfile
+          pull: true
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ steps.meta.outputs.tags }}
@@ -152,17 +214,23 @@ jobs:
           cache-from: type=gha,scope=dashboard
           cache-to: type=gha,mode=max,scope=dashboard
           build-args: |
-            NEXT_PUBLIC_API_URL=/api
+            VITE_BASE_PATH=/
 
-  # Build CLI binaries for multiple platforms
   build-cli-binaries:
+    name: Build CLI Binaries
     runs-on: ubuntu-latest
+    needs: prepare
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.release_cli == 'true') ||
+      needs.prepare.outputs.cli_changed == 'true' ||
+      needs.prepare.outputs.workflow_changed == 'true'
     permissions:
-      contents: write
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # Linux builds
           - goos: linux
             goarch: amd64
             suffix: ""
@@ -176,16 +244,12 @@ jobs:
           - goos: linux
             goarch: "386"
             suffix: ""
-          
-          # macOS builds
           - goos: darwin
             goarch: amd64
             suffix: ""
           - goos: darwin
             goarch: arm64
             suffix: ""
-          
-          # Windows builds
           - goos: windows
             goarch: amd64
             suffix: ".exe"
@@ -195,36 +259,32 @@ jobs:
           - goos: windows
             goarch: "386"
             suffix: ".exe"
-          
-          # FreeBSD builds
           - goos: freebsd
             goarch: amd64
             suffix: ""
           - goos: freebsd
             goarch: arm64
             suffix: ""
-
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: cli/go.sum
-        
-      - name: Get version
+
+      - name: Resolve version
         id: version
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
           else
-            VERSION="${{ github.ref_name }}-$(echo ${{ github.sha }} | cut -c1-8)"
+            VERSION="${{ github.ref_name }}-$(echo "${{ github.sha }}" | cut -c1-8)"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
-        
+          echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build CLI binary
         env:
           GOOS: ${{ matrix.goos }}
@@ -232,186 +292,126 @@ jobs:
           GOARM: ${{ matrix.goarm }}
           CGO_ENABLED: 0
         run: |
+          mkdir -p dist
           cd cli
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ steps.version.outputs.value }}"
           BINARY_NAME="traefik-log-dashboard-cli"
           OUTPUT_NAME="${BINARY_NAME}-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
-          
-          # Add ARM version to filename if applicable
-          if [ -n "${{ matrix.goarm }}" ]; then
+
+          if [[ -n "${{ matrix.goarm }}" ]]; then
             OUTPUT_NAME="${OUTPUT_NAME}v${{ matrix.goarm }}"
           fi
-          
+
           OUTPUT_NAME="${OUTPUT_NAME}${{ matrix.suffix }}"
-          
-          echo "Building ${OUTPUT_NAME}..."
-          
+
           go build -v \
             -ldflags="-X 'main.Version=${VERSION}' -X 'main.Commit=${{ github.sha }}' -X 'main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -s -w" \
             -o "../dist/${OUTPUT_NAME}" \
             ./cmd/traefik-log-dashboard
-          
-          # Create checksum
+
           cd ../dist
           sha256sum "${OUTPUT_NAME}" > "${OUTPUT_NAME}.sha256"
-          
+
       - name: Upload CLI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goarm }}
-          path: dist/*
+          path: |
+            dist/traefik-log-dashboard-cli-*
           retention-days: 7
 
-  # Create GitHub Release with all binaries
   create-release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [build-agent, build-dashboard, build-cli-binaries]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_cli == true
+    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Download all CLI artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: cli-*
           merge-multiple: true
-          
-      - name: List artifacts
-        run: |
-          echo "Downloaded artifacts:"
-          ls -la dist/
-          
-      - name: Create Release Notes
-        id: release_notes
+
+      - name: Create release notes
         run: |
           VERSION="${{ github.ref_name }}"
           cat > release_notes.md << EOF
           # Traefik Log Dashboard ${VERSION}
-          
-          ## 🐳 Docker Images
-          
+
+          ## Docker Images
+
           ### Agent
           - \`docker pull hhftechnology/traefik-log-dashboard-agent:${VERSION}\`
           - \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard-agent:${VERSION}\`
-          
+
           ### Dashboard
           - \`docker pull hhftechnology/traefik-log-dashboard:${VERSION}\`
           - \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard:${VERSION}\`
-          
-          ## 💻 CLI Binaries
-          
-          Download the appropriate binary for your platform from the assets below.
-          
-          ### Installation
-          
-          \`\`\`bash
-          # Linux/macOS
-          wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/traefik-log-dashboard-cli-${VERSION}-linux-amd64
-          chmod +x traefik-log-dashboard-cli-${VERSION}-linux-amd64
-          sudo mv traefik-log-dashboard-cli-${VERSION}-linux-amd64 /usr/local/bin/traefik-log-dashboard
-          
-          # Windows
-          # Download the .exe file and add to PATH
-          \`\`\`
-          
-          ## 📋 Changelog
-          
-          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-          
-          ## 🔧 Docker Compose
-          
+
+          ## CLI Binaries
+
+          Download the matching binary from release assets.
+
+          ## Docker Compose (current runtime env model)
+
           \`\`\`yaml
           services:
             traefik-agent:
               image: hhftechnology/traefik-log-dashboard-agent:${VERSION}
-              volumes:
-                - /var/log/traefik:/logs:ro
               ports:
-                - "8080:8080"
-          
+                - "5000:5000"
+              environment:
+                - TRAEFIK_LOG_DASHBOARD_ACCESS_PATH=/logs/access.log
+                - TRAEFIK_LOG_DASHBOARD_AUTH_TOKEN=replace-with-token
+
             traefik-dashboard:
               image: hhftechnology/traefik-log-dashboard:${VERSION}
-              environment:
-                - NEXT_PUBLIC_API_URL=http://traefik-agent:8080
               ports:
                 - "3000:3000"
-              depends_on:
-                - traefik-agent
+              environment:
+                - AGENT_1_NAME=Primary Agent
+                - AGENT_1_URL=http://traefik-agent:5000
+                - AGENT_1_TOKEN=replace-with-token
+                - DASHBOARD_AGENTS_ENV_ONLY=true
           \`\`\`
           EOF
-          
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
-          name: "Release ${{ github.ref_name }}"
+          name: Release ${{ github.ref_name }}
           body_path: release_notes.md
-          files: |
-            dist/*
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Build Summary
   build-summary:
+    name: Build Summary
     runs-on: ubuntu-latest
-    needs: [build-agent, build-dashboard, build-cli-binaries]
+    needs: [prepare, validate-compose, build-agent, build-dashboard, build-cli-binaries]
     if: always()
     steps:
-      - name: Build Summary
+      - name: Write summary
         run: |
-          echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Build Status" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Agent Docker | ${{ needs.build-agent.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dashboard Docker | ${{ needs.build-dashboard.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| CLI Binaries | ${{ needs.build-cli-binaries.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### 📦 Docker Images" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${{ github.ref_name }}"
-            echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### Docker Hub" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard-agent:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard-agent:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-            echo "**SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### Latest Images" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard-agent:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔨 CLI Binaries" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "CLI binaries built for:" >> $GITHUB_STEP_SUMMARY
-          echo "- Linux (amd64, arm64, arm/v7, 386)" >> $GITHUB_STEP_SUMMARY
-          echo "- macOS (amd64, arm64)" >> $GITHUB_STEP_SUMMARY
-          echo "- Windows (amd64, arm64, 386)" >> $GITHUB_STEP_SUMMARY
-          echo "- FreeBSD (amd64, arm64)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-          echo "- [Docker Hub - Agent](https://hub.docker.com/r/hhftechnology/traefik-log-dashboard-agent)" >> $GITHUB_STEP_SUMMARY
-          echo "- [Docker Hub - Dashboard](https://hub.docker.com/r/hhftechnology/traefik-log-dashboard)" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/container)" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "- [Release Page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "## Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Component | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Compose validation | ${{ needs.validate-compose.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Agent image | ${{ needs.build-agent.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dashboard image | ${{ needs.build-dashboard.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CLI binaries | ${{ needs.build-cli-binaries.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Change detection" >> "$GITHUB_STEP_SUMMARY"
+          echo "- agent changed: \`${{ needs.prepare.outputs.agent_changed }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- dashboard changed: \`${{ needs.prepare.outputs.dashboard_changed }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- cli changed: \`${{ needs.prepare.outputs.cli_changed }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- compose changed: \`${{ needs.prepare.outputs.compose_changed }}\`" >> "$GITHUB_STEP_SUMMARY"
