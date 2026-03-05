@@ -51,7 +51,26 @@ export class MultiAgentAPIClient {
   }
 
   async getStatus(): Promise<StatusResponse> {
-    return this.fetch<StatusResponse>('/api/logs/status');
+    try {
+      return await this.fetch<StatusResponse>('/api/logs/status');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (!message.includes('404')) {
+        throw error;
+      }
+
+      // Compatibility fallback for agents that don't expose /api/logs/status.
+      await this.fetch<SystemStats>('/api/system/resources');
+      return {
+        status: 'ok',
+        access_path: '',
+        access_path_exists: false,
+        error_path: '',
+        error_path_exists: false,
+        system_monitoring: true,
+        auth_enabled: true,
+      };
+    }
   }
 
   async getAccessLogs(limit?: number): Promise<LogsResponse> {

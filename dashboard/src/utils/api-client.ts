@@ -89,11 +89,35 @@ export class APIClient {
   }
 
   async getStatus(input: AgentRequestInput): Promise<StatusResponse> {
-    return this.fetchJSON<StatusResponse>({
-      endpoint: '/api/logs/status',
-      agentId: input.agentId,
-      options: { signal: input.signal },
-    });
+    try {
+      return await this.fetchJSON<StatusResponse>({
+        endpoint: '/api/logs/status',
+        agentId: input.agentId,
+        options: { signal: input.signal },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const isNotFound = message.includes('API Error: 404');
+      if (!isNotFound) {
+        throw error;
+      }
+
+      // Compatibility fallback: older/partial agents may not expose /api/logs/status.
+      // If /api/system/resources works, treat agent as reachable and suppress hard failure.
+      const resources = await this.getSystemResources(input);
+      const systemMonitoring =
+        !(typeof resources === 'object' && resources !== null && 'status' in resources && (resources as { status?: string }).status === 'disabled');
+
+      return {
+        status: 'ok',
+        access_path: '',
+        access_path_exists: false,
+        error_path: '',
+        error_path_exists: false,
+        system_monitoring: systemMonitoring,
+        auth_enabled: true,
+      };
+    }
   }
 
   async getAccessLogs(input: AccessLogsRequestInput): Promise<LogsResponse> {

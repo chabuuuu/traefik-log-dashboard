@@ -165,7 +165,16 @@ router.post('/check-status', async (req: Request, res: Response) => {
 
     clearTimeout(timeoutId);
 
-    const isOnline = response.ok;
+    let isOnline = response.ok;
+    if (!isOnline && response.status === 404) {
+      // Compatibility fallback for agents that don't expose /api/logs/status.
+      const resourcesResponse = await fetch(`${agentUrl}/api/system/resources`, {
+        headers,
+        signal: controller.signal,
+      });
+      isOnline = resourcesResponse.ok;
+    }
+
     updateAgent(id, {
       status: isOnline ? 'online' : 'offline',
       last_seen: isOnline ? new Date().toISOString() : undefined,

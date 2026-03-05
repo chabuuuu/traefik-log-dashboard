@@ -334,6 +334,10 @@ async function fetchParserMetrics(agent: DBAgent): Promise<ParserMetricsSnapshot
       signal: controller.signal,
     });
 
+    if (response.status === 404) {
+      return null;
+    }
+
     if (!response.ok) {
       throw new Error(`Agent status API responded with ${response.status}`);
     }
