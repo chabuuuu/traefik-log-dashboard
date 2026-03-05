@@ -18,6 +18,9 @@ describe('getRuntimeConfig', () => {
       defaultAgentToken: 'secret',
       refreshIntervalMs: 2000,
       maxLogsDisplay: 1234,
+      trafficTopItemsLimit: 25,
+      parserTrendWindowMinutes: 20,
+      agentsEnvOnly: true,
       density: 'compact',
       showDemoPage: false,
     };
@@ -29,8 +32,10 @@ describe('getRuntimeConfig', () => {
     expect(cfg.defaultAgentToken).toBe('secret');
     expect(cfg.refreshIntervalMs).toBe(2000);
     expect(cfg.maxLogsDisplay).toBe(1234);
+    expect(cfg.trafficTopItemsLimit).toBe(25);
+    expect(cfg.parserTrendWindowMinutes).toBe(20);
+    expect(cfg.agentsEnvOnly).toBe(true);
     expect(cfg.density).toBe('compact');
     expect(cfg.showDemoPage).toBe(false);
   });
 });
-

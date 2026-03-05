@@ -6,15 +6,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Progress } from '@/components/ui/progress';
 import { DashboardMetrics } from '@/utils/types';
 import { formatNumber } from '@/utils/utils';
+import { useConfig } from '@/utils/contexts/ConfigContext';
 
 interface TrafficSectionProps {
   metrics: DashboardMetrics;
 }
 
 function TrafficSection({ metrics }: TrafficSectionProps) {
-  const maxRouteCount = Math.max(...metrics.topRoutes.map(r => r.count), 1);
-  const maxServiceCount = Math.max(...metrics.backends.map(b => b.requests), 1);
-  const maxRouterCount = Math.max(...metrics.routers.map(r => r.requests), 1);
+  const { config } = useConfig();
+  const topItemsLimit = Math.max(3, config.trafficTopItemsLimit || 10);
+  const topRoutes = metrics.topRoutes.slice(0, topItemsLimit);
+  const topServices = metrics.backends.slice(0, topItemsLimit);
+  const topRouters = metrics.routers.slice(0, topItemsLimit);
+
+  const maxRouteCount = Math.max(...topRoutes.map(r => r.count), 1);
+  const maxServiceCount = Math.max(...topServices.map(b => b.requests), 1);
+  const maxRouterCount = Math.max(...topRouters.map(r => r.requests), 1);
 
   // Backend health calculation
   const healthyBackends = metrics.backends.filter(b => b.errorRate < 5).length;
@@ -54,7 +61,7 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-80 overflow-y-auto">
-              {metrics.topRoutes.slice(0, 10).map((route, idx) => (
+              {topRoutes.map((route, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[200px]" title={route.path}>
@@ -70,6 +77,11 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
               {metrics.topRoutes.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">No route data available</p>
               )}
+              {metrics.topRoutes.length > topItemsLimit && (
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  Showing top {topItemsLimit} of {metrics.topRoutes.length} routes
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -82,7 +94,7 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-80 overflow-y-auto">
-              {metrics.backends.slice(0, 10).map((service, idx) => (
+              {topServices.map((service, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium truncate max-w-[200px]" title={service.name}>
@@ -102,6 +114,11 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
               {metrics.backends.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">No service data available</p>
               )}
+              {metrics.backends.length > topItemsLimit && (
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  Showing top {topItemsLimit} of {metrics.backends.length} services
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -115,7 +132,7 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {metrics.backends.map((backend, idx) => {
+            {topServices.map((backend, idx) => {
               const status = backend.errorRate < 5
                 ? { icon: CheckCircle, color: 'text-success', bg: 'bg-success-muted', border: 'border-success/30', label: 'Healthy' }
                 : backend.errorRate < 10
@@ -166,6 +183,11 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
             {metrics.backends.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">No backend data available</p>
             )}
+            {metrics.backends.length > topItemsLimit && (
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Showing top {topItemsLimit} of {metrics.backends.length} backend services
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -178,7 +200,7 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3 max-h-80 overflow-y-auto">
-            {metrics.routers.slice(0, 10).map((router, idx) => (
+            {topRouters.map((router, idx) => (
               <div key={idx} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex-1 min-w-0">
@@ -197,6 +219,11 @@ function TrafficSection({ metrics }: TrafficSectionProps) {
             ))}
             {metrics.routers.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">No router data available</p>
+            )}
+            {metrics.routers.length > topItemsLimit && (
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Showing top {topItemsLimit} of {metrics.routers.length} routers
+              </p>
             )}
           </div>
         </CardContent>

@@ -32,34 +32,49 @@ environment:
 
 ## Dashboard Environment Variables
 
-The dashboard is a Next.js application that displays analytics from agents.
+The dashboard server reads runtime environment variables directly (Docker Compose-friendly).
 
-### Agent Connection
+### Agent Configuration (Environment-Managed)
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `AGENT_API_URL` | Default agent URL (environment agent) | - | Yes |
-| `AGENT_API_TOKEN` | Default agent token (environment agent) | - | Yes |
-| `AGENT_NAME` | Display name for environment agent | `Environment Agent` | No |
+| `AGENT_1_URL` | URL of first environment agent | - | Yes (or `DASHBOARD_AGENTS_JSON`) |
+| `AGENT_1_TOKEN` | Token for first environment agent | `""` | No |
+| `AGENT_1_NAME` | Display name for first environment agent | `Agent 1` | No |
+| `AGENT_1_ID` | Stable agent id (must be unique) | `agent-env-1` | No |
+| `AGENT_1_LOCATION` | `on-site` or `off-site` | `on-site` | No |
+| `AGENT_1_DESCRIPTION` | Optional description | - | No |
+| `AGENT_1_TAGS` | Comma-separated tags | - | No |
+| `AGENT_2_URL`, `AGENT_3_URL`, ... | Additional agents using the same key pattern | - | No |
+| `DASHBOARD_AGENTS_JSON` | JSON array alternative for multi-agent config | - | No |
+| `DASHBOARD_AGENTS_ENV_ONLY` | Disable UI/API agent mutations (`true` = env-only) | `false` | No |
 
-> **Note**: The agent defined by `AGENT_API_URL` and `AGENT_API_TOKEN` is the **Environment Agent**. This agent cannot be deleted from the UI and acts as the primary connection.
+Legacy fallback (kept for compatibility): `AGENT_API_URL`, `AGENT_API_TOKEN`, `AGENT_NAME`.
 
 ### Display Configuration
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `NEXT_PUBLIC_SHOW_DEMO_PAGE` | Show demo mode link in navigation | `true` | No |
-| `NEXT_PUBLIC_MAX_LOGS_DISPLAY` | Maximum logs to display in table | `500` | No |
+| `DASHBOARD_REFRESH_INTERVAL_MS` | Refresh/poll interval | `5000` | No |
+| `DASHBOARD_MAX_LOGS_DISPLAY` | Maximum logs retained in dashboard state | `1000` | No |
+| `DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT` | Top-N shown in Traffic cards/lists | `10` | No |
+| `DASHBOARD_PARSER_TREND_WINDOW_MINUTES` | Parser trend window in System tab (15-30) | `30` | No |
+| `SHOW_DEMO_PAGE` | Show demo dashboard link | `true` | No |
+| `DASHBOARD_DENSITY` | UI density (`compact`, `comfortable`) | `comfortable` | No |
 
 ### GeoIP Configuration
 
-Geographic IP lookup is handled by the **dashboard** using the [geolite2-redist](https://www.npmjs.com/package/geolite2-redist) npm package, which automatically downloads MaxMind GeoLite2 databases.
+Geographic lookup is handled by the dashboard `/api/location/*` service.
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `GEOIP_DB_PATH` | Override path to GeoLite2-City.mmdb | Auto-downloaded | No |
-
-> **Note**: GeoIP databases are automatically included in the dashboard Docker image. You only need to set `GEOIP_DB_PATH` if you want to use a custom database location.
+| `GEOIP_LOOKUP_ENABLED` | Enable/disable GeoIP lookup service | `true` | No |
+| `GEOIP_PROVIDER_BASE_URL` | Geo provider base URL | `https://ipwho.is` | No |
+| `GEOIP_LOOKUP_TIMEOUT_MS` | Lookup timeout (ms) | `3500` | No |
+| `GEOIP_LOOKUP_MAX_IPS` | Max IPs per lookup request | `256` | No |
+| `GEOIP_LOOKUP_CONCURRENCY` | Parallel lookups per request | `10` | No |
+| `GEOIP_LOOKUP_CACHE_TTL_MS` | Cache TTL (ms) | `3600000` | No |
+| `GEOIP_LOOKUP_CACHE_MAX_ENTRIES` | Max cache entries | `10000` | No |
 
 ### Server Configuration
 
@@ -67,32 +82,55 @@ Geographic IP lookup is handled by the **dashboard** using the [geolite2-redist]
 |----------|-------------|---------|----------|
 | `NODE_ENV` | Node environment | `production` | No |
 | `PORT` | Dashboard listen port | `3000` | No |
-| `DATABASE_PATH` | SQLite database location | `./data/agents.db` | No |
+| `DATA_DIR` | Data directory for dashboard SQLite | `/data` | No |
+| `BASE_PATH` | Base path for reverse-proxy deployments | `""` | No |
+| `BASE_DOMAIN` | Base domain override | `""` | No |
 
 ### Security Configuration
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | `*` | No |
-| `ENABLE_BACKGROUND_SCHEDULER` | Enable background metrics processing | `true` | No |
+| `ALERTS_API_KEY` | API key required for alert mutation endpoints | `""` | No |
+| `ALERT_ALLOW_PRIVATE_WEBHOOKS` | Allow private network webhook targets | `false` | No |
 
-### Example Dashboard Configuration
+### Alert Scheduler Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `ALERT_SCHEDULER_INTERVAL_MS` | Scheduler execution interval | `300000` (5 min) | No |
+| `ALERT_FETCH_LINES` | Access lines fetched per alert evaluation | `5000` | No |
+
+### Example Dashboard Configuration (Compose)
 
 ```yaml
 environment:
-  # Agent Connection
-  - AGENT_API_URL=http://traefik-agent:5000
-  - AGENT_API_TOKEN=your-secret-token
-  - AGENT_NAME=Production Agent
+  # Multi-agent env configuration
+  - AGENT_1_NAME=Primary
+  - AGENT_1_URL=http://traefik-agent:5000
+  - AGENT_1_TOKEN=your-secret-token
+  - AGENT_2_NAME=Staging
+  - AGENT_2_URL=http://staging-agent:5000
+  - AGENT_2_TOKEN=staging-secret-token
+  - DASHBOARD_AGENTS_ENV_ONLY=true
 
-  # Display
-  - NEXT_PUBLIC_SHOW_DEMO_PAGE=true
-  - NEXT_PUBLIC_MAX_LOGS_DISPLAY=500
+  # Display / UI
+  - DASHBOARD_REFRESH_INTERVAL_MS=5000
+  - DASHBOARD_MAX_LOGS_DISPLAY=1000
+  - DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT=25
+  - DASHBOARD_PARSER_TREND_WINDOW_MINUTES=30
+  - SHOW_DEMO_PAGE=true
+  - GEOIP_LOOKUP_ENABLED=true
+  - GEOIP_PROVIDER_BASE_URL=https://ipwho.is
 
   # Server
   - NODE_ENV=production
   - PORT=3000
 ```
+
+### Compose Compatibility Notes
+
+- Runtime dashboard variables above can all be set directly in `docker-compose.yml`.
+- Build-time `VITE_*` values are development/build variables, not runtime container settings.
 
 ## CLI Environment Variables
 

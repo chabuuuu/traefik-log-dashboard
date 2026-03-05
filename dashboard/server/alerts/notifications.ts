@@ -76,7 +76,7 @@ function formatMetricValue(key: string, value: unknown): string {
   }
 
   if (typeof value === 'number') {
-    if (key === 'error_rate') {
+    if (key === 'error_rate' || key === 'parser_unknown_ratio' || key === 'parser_error_ratio') {
       return `${value.toFixed(2)}%`;
     }
 
@@ -149,6 +149,16 @@ export function buildAlertMessage(input: BuildAlertMessageInput): string {
     lines.push(`${input.metrics.error_rate.toFixed(2)}%`);
   }
 
+  if (typeof input.metrics.parser_unknown_ratio === 'number') {
+    lines.push('🧩 Parser Unknown Ratio');
+    lines.push(`${input.metrics.parser_unknown_ratio.toFixed(2)}%`);
+  }
+
+  if (typeof input.metrics.parser_error_ratio === 'number') {
+    lines.push('⚠️ Parser Error Ratio');
+    lines.push(`${input.metrics.parser_error_ratio.toFixed(2)}%`);
+  }
+
   if (input.metrics.response_time) {
     lines.push('⏱️ Response Time');
     lines.push(`Avg: ${Math.round(input.metrics.response_time.average)}ms`);
@@ -177,6 +187,8 @@ export function buildAlertMessage(input: BuildAlertMessageInput): string {
   const handledKeys = new Set([
     'request_count',
     'error_rate',
+    'parser_unknown_ratio',
+    'parser_error_ratio',
     'response_time',
     'top_ips',
     'top_client_ips',

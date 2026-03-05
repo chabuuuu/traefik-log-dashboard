@@ -29,6 +29,8 @@ export type AlertParameter =
   | 'response_time'
   | 'request_count'
   | 'request_rate'
+  | 'parser_unknown_ratio'
+  | 'parser_error_ratio'
   | 'top_request_addresses'
   | 'top_client_ips';
 
@@ -84,6 +86,8 @@ export interface AggregatedAlertMetrics {
   request_count?: number;
   request_rate?: number;
   error_rate?: number;
+  parser_unknown_ratio?: number;
+  parser_error_ratio?: number;
   response_time?: {
     average: number;
     p95: number;
@@ -99,6 +103,14 @@ export interface AggregatedAlertMetrics {
   top_services?: Array<{ name: string; requests: number }>;
   top_hosts?: Array<{ host: string; count: number }>;
   top_request_addresses?: Array<{ addr: string; count: number }>;
+}
+
+export interface ParserMetricsSnapshot {
+  json?: number;
+  traefik_clf?: number;
+  generic_clf?: number;
+  unknown?: number;
+  errors?: number;
 }
 
 export interface AgentLogRecord {

@@ -17,7 +17,8 @@ export default function DashboardPage() {
     isPaused,
     setIsPaused,
     agentId,
-    agentName
+    agentName,
+    dedupeDebug,
   } = useLogFetcher();
 
   if (loading) {
@@ -85,6 +86,7 @@ export default function DashboardPage() {
       logsCount={logs.length}
       showControls={true}
       agentName={agentName}
+      dedupeDebug={dedupeDebug}
     >
       <ErrorBoundary>
         <DashboardWithFilters

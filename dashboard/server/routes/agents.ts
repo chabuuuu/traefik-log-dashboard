@@ -9,10 +9,23 @@ import {
   getSelectedAgentId,
   setSelectedAgentId,
   bulkImportAgents,
+  isEnvOnlyAgentsMode,
   serializeAgent,
 } from '../db';
 
 const router = Router();
+
+function rejectWhenEnvOnly(res: Response): boolean {
+  if (!isEnvOnlyAgentsMode()) {
+    return false;
+  }
+
+  res.status(403).json({
+    error: 'Agent mutations are disabled in env-only mode',
+    hint: 'Set DASHBOARD_AGENTS_ENV_ONLY=false to manage agents via UI/API',
+  });
+  return true;
+}
 
 // GET /api/dashboard/agents — list all agents
 router.get('/', (_req: Request, res: Response) => {
@@ -22,6 +35,10 @@ router.get('/', (_req: Request, res: Response) => {
 
 // POST /api/dashboard/agents — add agent
 router.post('/', (req: Request, res: Response) => {
+  if (rejectWhenEnvOnly(res)) {
+    return;
+  }
+
   const { name, url, configuredUrl, token, location, description, tags } = req.body;
 
   if (!name || !url) {
@@ -44,6 +61,10 @@ router.post('/', (req: Request, res: Response) => {
 
 // PATCH /api/dashboard/agents — update agent
 router.patch('/', (req: Request, res: Response) => {
+  if (rejectWhenEnvOnly(res)) {
+    return;
+  }
+
   const { id, ...updates } = req.body;
 
   if (!id) {
@@ -62,6 +83,10 @@ router.patch('/', (req: Request, res: Response) => {
 
 // DELETE /api/dashboard/agents?id=xxx — delete agent
 router.delete('/', (req: Request, res: Response) => {
+  if (rejectWhenEnvOnly(res)) {
+    return;
+  }
+
   const id = req.query.id as string;
 
   if (!id) {
@@ -155,6 +180,10 @@ router.post('/check-status', async (req: Request, res: Response) => {
 
 // POST /api/dashboard/agents/import — bulk import from localStorage migration
 router.post('/import', (req: Request, res: Response) => {
+  if (rejectWhenEnvOnly(res)) {
+    return;
+  }
+
   const { agents } = req.body;
 
   if (!Array.isArray(agents)) {

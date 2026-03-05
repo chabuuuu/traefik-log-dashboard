@@ -155,11 +155,20 @@ Open http://localhost:3000 in your browser.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AGENT_API_URL` | URL to agent API | Required |
-| `AGENT_API_TOKEN` | Authentication token (must match agent) | Required |
-| `AGENT_NAME` | Display name for the agent | `Environment Agent` |
-| `NEXT_PUBLIC_SHOW_DEMO_PAGE` | Show demo mode link | `true` |
-| `NEXT_PUBLIC_MAX_LOGS_DISPLAY` | Max logs in table | `500` |
+| `AGENT_1_URL` | First environment agent URL | Required (or `DASHBOARD_AGENTS_JSON`) |
+| `AGENT_1_TOKEN` | First environment agent token | Optional |
+| `AGENT_1_NAME` | First environment agent name | `Agent 1` |
+| `AGENT_2_URL`, `AGENT_3_URL`, ... | Additional environment agents | Optional |
+| `DASHBOARD_AGENTS_ENV_ONLY` | Disable UI/API agent mutations | `false` |
+| `DASHBOARD_REFRESH_INTERVAL_MS` | Refresh interval | `5000` |
+| `DASHBOARD_MAX_LOGS_DISPLAY` | Max logs retained in dashboard state | `1000` |
+| `DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT` | Top-N shown in Traffic lists | `10` |
+| `DASHBOARD_PARSER_TREND_WINDOW_MINUTES` | Parser sparkline trend window (15-30) | `30` |
+| `SHOW_DEMO_PAGE` | Show demo mode link | `true` |
+| `GEOIP_LOOKUP_ENABLED` | Enable dashboard GeoIP lookup API | `true` |
+| `GEOIP_PROVIDER_BASE_URL` | GeoIP provider base URL | `https://ipwho.is` |
+
+Legacy fallback (still supported): `AGENT_API_URL`, `AGENT_API_TOKEN`, `AGENT_NAME`.
 
 > **Note**: GeoIP is automatically handled by the dashboard using [geolite2-redist](https://www.npmjs.com/package/geolite2-redist). No configuration needed.
 

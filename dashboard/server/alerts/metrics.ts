@@ -9,6 +9,10 @@ interface BuildMetricsInput {
   logs: AgentLogRecord[];
   parameters: AlertParameterConfig[];
   windowMs: number;
+  parserRatios?: {
+    unknownRatio: number;
+    errorRatio: number;
+  };
 }
 
 function parseLogTimestamp(log: AgentLogRecord): number | null {
@@ -91,6 +95,14 @@ export function buildAggregatedMetrics(input: BuildMetricsInput): AggregatedAler
 
   if (selectedParameters.has('error_rate')) {
     metrics.error_rate = requestCount > 0 ? (errors / requestCount) * 100 : 0;
+  }
+
+  if (selectedParameters.has('parser_unknown_ratio')) {
+    metrics.parser_unknown_ratio = (input.parserRatios?.unknownRatio ?? 0) * 100;
+  }
+
+  if (selectedParameters.has('parser_error_ratio')) {
+    metrics.parser_error_ratio = (input.parserRatios?.errorRatio ?? 0) * 100;
   }
 
   if (selectedParameters.has('response_time')) {
@@ -228,6 +240,10 @@ export function thresholdValueForParameter(
       return metrics.request_count ?? null;
     case 'request_rate':
       return metrics.request_rate ?? null;
+    case 'parser_unknown_ratio':
+      return metrics.parser_unknown_ratio ?? null;
+    case 'parser_error_ratio':
+      return metrics.parser_error_ratio ?? null;
     default:
       return null;
   }

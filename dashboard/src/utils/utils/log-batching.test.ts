@@ -47,6 +47,22 @@ describe('buildLogKey', () => {
     expect(a).toBe(b);
     expect(c).not.toBe(a);
   });
+
+  it('uses additional entropy for low-variance generic CLF-like logs', () => {
+    const base = makeLog({
+      RequestCount: 0,
+      RequestPath: '/api',
+      RequestMethod: 'GET',
+      StartUTC: '2024-01-01T00:00:00Z',
+      Duration: 0,
+      DownstreamStatus: 200,
+    });
+
+    const k1 = buildLogKey({ ...base, RequestUserAgent: 'curl/8.0.0' });
+    const k2 = buildLogKey({ ...base, RequestUserAgent: 'wget/1.0' });
+
+    expect(k1).not.toBe(k2);
+  });
 });
 
 describe('dedupeLogs', () => {

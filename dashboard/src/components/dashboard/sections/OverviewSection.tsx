@@ -29,7 +29,9 @@ function OverviewSection({ metrics }: OverviewSectionProps) {
     {
       title: 'Response Time',
       value: `${metrics.responseTime.average.toFixed(0)}ms`,
-      description: `P99: ${metrics.responseTime.p99.toFixed(0)}ms`,
+      description: metrics.responseTime.samples > 0
+        ? `P99: ${metrics.responseTime.p99.toFixed(0)}ms`
+        : 'Duration unavailable for current log mix',
       icon: Clock,
       color: metrics.responseTime.average < 200 ? 'text-success' : metrics.responseTime.average < 500 ? 'text-warning' : 'text-destructive',
       bgColor: metrics.responseTime.average < 200 ? 'bg-success-muted' : metrics.responseTime.average < 500 ? 'bg-warning-muted' : 'bg-destructive-muted',
@@ -133,6 +135,11 @@ function OverviewSection({ metrics }: OverviewSectionProps) {
           <CardTitle className="text-sm font-semibold uppercase tracking-wide">
             Response Time Percentiles
           </CardTitle>
+          {metrics.responseTime.samples === 0 && (
+            <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal">
+              Duration is unavailable for this interval (generic CLF lines may omit it).
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

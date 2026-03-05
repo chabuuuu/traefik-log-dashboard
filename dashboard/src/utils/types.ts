@@ -131,6 +131,15 @@ export interface StatusResponse {
   error_path_exists: boolean;
   system_monitoring: boolean;
   auth_enabled: boolean;
+  parser_metrics?: ParserMetrics;
+}
+
+export interface ParserMetrics {
+  json: number;
+  traefik_clf: number;
+  generic_clf: number;
+  unknown: number;
+  errors: number;
 }
 
 // Dashboard Metrics Types
@@ -145,6 +154,7 @@ export interface ResponseTimeMetrics {
   p95: number;
   p99: number;
   change: number;
+  samples: number;
 }
 
 export interface StatusCodeMetrics {

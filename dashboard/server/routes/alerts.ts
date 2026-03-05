@@ -35,6 +35,8 @@ const ALLOWED_PARAMETERS = new Set<AlertParameterConfig['parameter']>([
   'response_time',
   'request_count',
   'request_rate',
+  'parser_unknown_ratio',
+  'parser_error_ratio',
   'top_request_addresses',
   'top_client_ips',
 ]);

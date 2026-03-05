@@ -22,6 +22,16 @@ const DB_PATH = path.join(DATA_DIR, 'dashboard.db');
 
 let db: Database.Database;
 
+interface EnvAgentConfig {
+  id: string;
+  name: string;
+  url: string;
+  token: string;
+  location: 'on-site' | 'off-site';
+  description?: string;
+  tags?: string[];
+}
+
 export function getDB(): Database.Database {
   if (!db) {
     db = new Database(DB_PATH);
@@ -204,34 +214,235 @@ export function getSelectedAgent(): DBAgent | null {
 
 // --- Env Agent Sync ---
 
-export function syncEnvAgents(): void {
-  const agentUrl = (process.env.AGENT_URL || process.env.AGENT_API_URL || '').replace(/\/+$/, '');
-  const agentToken = process.env.AGENT_API_TOKEN || process.env.AGENT_TOKEN || '';
+function normalizeAgentID(raw: string, fallback: string): string {
+  const normalized = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-');
+  if (!normalized) {
+    return fallback;
+  }
+  return normalized.startsWith('agent-env-') ? normalized : `agent-env-${normalized}`;
+}
 
-  if (!agentUrl && !agentToken) return;
+function normalizeAgentURL(raw: string): string {
+  return raw.trim().replace(/\/+$/, '');
+}
 
-  const d = getDB();
-  const ENV_AGENT_ID = 'agent-env-default';
+function parseLocation(raw: unknown): 'on-site' | 'off-site' {
+  return raw === 'off-site' ? 'off-site' : 'on-site';
+}
 
-  const existing = getAgentById(ENV_AGENT_ID);
-
-  if (existing) {
-    // Update URL and token from env
-    d.prepare(`
-      UPDATE agents SET url = ?, configured_url = ?, token = ? WHERE id = ?
-    `).run(agentUrl || existing.url, agentUrl || existing.configured_url, agentToken, ENV_AGENT_ID);
-  } else {
-    // Insert env agent with number 0 so it sorts first
-    d.prepare(`
-      INSERT INTO agents (id, name, url, configured_url, token, source, location, number, status)
-      VALUES (?, 'Default Agent', ?, ?, ?, 'env', 'on-site', 0, 'checking')
-    `).run(ENV_AGENT_ID, agentUrl, agentUrl, agentToken);
+function parseTags(raw: unknown): string[] | undefined {
+  if (Array.isArray(raw)) {
+    const tags = raw.filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0);
+    return tags.length > 0 ? tags : undefined;
   }
 
-  // Auto-select if nothing selected
+  if (typeof raw === 'string') {
+    const tags = raw
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+    return tags.length > 0 ? tags : undefined;
+  }
+
+  return undefined;
+}
+
+function parseIndexedEnvAgents(): EnvAgentConfig[] {
+  const indexes = new Set<number>();
+  const matcher = /^AGENT_(\d+)_URL$/;
+
+  for (const key of Object.keys(process.env)) {
+    const match = key.match(matcher);
+    if (match) {
+      indexes.add(Number(match[1]));
+    }
+  }
+
+  const parsedAgents: EnvAgentConfig[] = [];
+  const orderedIndexes = [...indexes]
+    .filter((index) => Number.isFinite(index) && index > 0)
+    .sort((a, b) => a - b);
+
+  for (const index of orderedIndexes) {
+    const url = normalizeAgentURL(process.env[`AGENT_${index}_URL`] || '');
+    if (!url) {
+      continue;
+    }
+
+    const name = (process.env[`AGENT_${index}_NAME`] || `Agent ${index}`).trim() || `Agent ${index}`;
+    const id = normalizeAgentID(process.env[`AGENT_${index}_ID`] || '', `agent-env-${index}`);
+    const token = process.env[`AGENT_${index}_TOKEN`] || '';
+    const location = parseLocation(process.env[`AGENT_${index}_LOCATION`]);
+    const description = process.env[`AGENT_${index}_DESCRIPTION`]?.trim() || undefined;
+    const tags = parseTags(process.env[`AGENT_${index}_TAGS`]);
+
+    parsedAgents.push({
+      id,
+      name,
+      url,
+      token,
+      location,
+      description,
+      tags,
+    });
+  }
+
+  return parsedAgents;
+}
+
+function parseJSONEnvAgents(): EnvAgentConfig[] {
+  const raw = process.env.DASHBOARD_AGENTS_JSON || process.env.DASHBOARD_AGENTS || '';
+  if (!raw.trim()) {
+    return [];
+  }
+
+  try {
+    const payload = JSON.parse(raw) as unknown;
+    if (!Array.isArray(payload)) {
+      return [];
+    }
+
+    const parsedAgents: EnvAgentConfig[] = [];
+
+    payload.forEach((entry, index) => {
+      if (!entry || typeof entry !== 'object') {
+        return;
+      }
+
+      const parsed = entry as Record<string, unknown>;
+      const url = normalizeAgentURL(typeof parsed.url === 'string' ? parsed.url : '');
+      if (!url) {
+        return;
+      }
+
+      const fallbackID = `agent-env-json-${index + 1}`;
+      const id = normalizeAgentID(typeof parsed.id === 'string' ? parsed.id : '', fallbackID);
+      const name = (typeof parsed.name === 'string' ? parsed.name : `Env Agent ${index + 1}`).trim() || `Env Agent ${index + 1}`;
+      const token = typeof parsed.token === 'string' ? parsed.token : '';
+      const location = parseLocation(parsed.location);
+      const description = typeof parsed.description === 'string' ? parsed.description.trim() : undefined;
+      const tags = parseTags(parsed.tags);
+
+      parsedAgents.push({
+        id,
+        name,
+        url,
+        token,
+        location,
+        description,
+        tags,
+      });
+    });
+
+    return parsedAgents;
+  } catch (error) {
+    console.error('[db] Failed to parse DASHBOARD_AGENTS_JSON:', error);
+    return [];
+  }
+}
+
+function parseLegacyDefaultEnvAgent(): EnvAgentConfig[] {
+  const url = normalizeAgentURL(process.env.AGENT_API_URL || process.env.AGENT_URL || '');
+  const token = process.env.AGENT_API_TOKEN || process.env.AGENT_TOKEN || '';
+  if (!url && !token) {
+    return [];
+  }
+
+  return [{
+    id: 'agent-env-default',
+    name: (process.env.AGENT_NAME || 'Default Agent').trim() || 'Default Agent',
+    url,
+    token,
+    location: parseLocation(process.env.AGENT_LOCATION),
+    description: process.env.AGENT_DESCRIPTION?.trim() || undefined,
+    tags: parseTags(process.env.AGENT_TAGS),
+  }];
+}
+
+function parseConfiguredEnvAgents(): EnvAgentConfig[] {
+  const indexed = parseIndexedEnvAgents();
+  if (indexed.length > 0) {
+    return indexed;
+  }
+
+  const fromJSON = parseJSONEnvAgents();
+  if (fromJSON.length > 0) {
+    return fromJSON;
+  }
+
+  return parseLegacyDefaultEnvAgent();
+}
+
+export function isEnvOnlyAgentsMode(): boolean {
+  const raw = (process.env.DASHBOARD_AGENTS_ENV_ONLY || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+export function syncEnvAgents(): void {
+  const envAgents = parseConfiguredEnvAgents();
+
+  const d = getDB();
+  const configuredIDs = new Set(envAgents.map((agent) => agent.id));
+
+  const existingEnvAgents = d
+    .prepare(`SELECT id FROM agents WHERE source = 'env'`)
+    .all() as Array<{ id: string }>;
+
+  for (const row of existingEnvAgents) {
+    if (!configuredIDs.has(row.id)) {
+      d.prepare('DELETE FROM agents WHERE id = ? AND source = ?').run(row.id, 'env');
+    }
+  }
+
+  envAgents.forEach((agent, index) => {
+    const existing = getAgentById(agent.id);
+
+    if (existing) {
+      d.prepare(`
+        UPDATE agents
+        SET name = ?, url = ?, configured_url = ?, token = ?, source = 'env', location = ?, number = ?, description = ?, tags = ?
+        WHERE id = ?
+      `).run(
+        agent.name,
+        agent.url || existing.url,
+        agent.url || existing.configured_url,
+        agent.token,
+        agent.location,
+        index,
+        agent.description ?? null,
+        agent.tags ? JSON.stringify(agent.tags) : null,
+        agent.id,
+      );
+      return;
+    }
+
+    d.prepare(`
+      INSERT INTO agents (id, name, url, configured_url, token, source, location, number, status, description, tags)
+      VALUES (?, ?, ?, ?, ?, 'env', ?, ?, 'checking', ?, ?)
+    `).run(
+      agent.id,
+      agent.name,
+      agent.url,
+      agent.url,
+      agent.token,
+      agent.location,
+      index,
+      agent.description ?? null,
+      agent.tags ? JSON.stringify(agent.tags) : null,
+    );
+  });
+
   const selected = getSelectedAgentId();
-  if (!selected) {
-    setSelectedAgentId(ENV_AGENT_ID);
+  const selectedExists = selected ? Boolean(getAgentById(selected)) : false;
+
+  if (!selected || !selectedExists) {
+    if (envAgents.length > 0) {
+      setSelectedAgentId(envAgents[0].id);
+      return;
+    }
+
+    const firstAvailable = getAllAgents()[0];
+    setSelectedAgentId(firstAvailable?.id ?? null);
   }
 }
 

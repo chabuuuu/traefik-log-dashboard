@@ -53,10 +53,13 @@ function buildRuntimeConfig(): Record<string, unknown> {
   const showDemoRaw = pick('SHOW_DEMO_PAGE', 'DASHBOARD_SHOW_DEMO_PAGE');
   const refreshRaw = pick('DASHBOARD_REFRESH_INTERVAL_MS', 'REFRESH_INTERVAL_MS');
   const maxLogsRaw = pick('DASHBOARD_MAX_LOGS_DISPLAY', 'MAX_LOGS_DISPLAY');
+  const trafficTopItemsRaw = pick('DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT');
+  const parserTrendWindowRaw = pick('DASHBOARD_PARSER_TREND_WINDOW_MINUTES');
+  const agentsEnvOnlyRaw = pick('DASHBOARD_AGENTS_ENV_ONLY');
   const density = pick('DASHBOARD_DENSITY', 'UI_DENSITY') || 'comfortable';
-  const agentUrl = pick('AGENT_URL', 'AGENT_API_URL', 'VITE_AGENT_API_URL');
-  const agentToken = pick('AGENT_API_TOKEN', 'AGENT_TOKEN', 'VITE_AGENT_API_TOKEN');
-  const frontendAgentUrl = pick('DASHBOARD_DEFAULT_AGENT_URL', 'DEFAULT_AGENT_URL');
+  const agentUrl = pick('AGENT_API_URL', 'AGENT_URL');
+  const agentToken = pick('AGENT_API_TOKEN', 'AGENT_TOKEN');
+  const frontendAgentUrl = pick('DASHBOARD_DEFAULT_AGENT_URL');
 
   return {
     basePath,
@@ -64,6 +67,9 @@ function buildRuntimeConfig(): Record<string, unknown> {
     showDemoPage: toBool(showDemoRaw, true),
     refreshIntervalMs: toInt(refreshRaw, 5000),
     maxLogsDisplay: toInt(maxLogsRaw, 1000),
+    trafficTopItemsLimit: Math.max(3, Math.min(200, toInt(trafficTopItemsRaw, 10))),
+    parserTrendWindowMinutes: Math.max(15, Math.min(30, toInt(parserTrendWindowRaw, 30))),
+    agentsEnvOnly: toBool(agentsEnvOnlyRaw, false),
     chartPalette: [
       'var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)',
       'var(--chart-4)', 'var(--chart-5)',

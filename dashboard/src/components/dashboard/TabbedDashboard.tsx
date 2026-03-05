@@ -6,6 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TraefikLog } from '@/utils/types';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
 import { useSystemStats } from '@/hooks/useSystemStats';
+import { useAgentStatus } from '@/hooks/useAgentStatus';
+import { useConfig } from '@/utils/contexts/ConfigContext';
 import { calculateMetrics, getEmptyMetrics } from '@/utils/utils/metric-calculator';
 import { sortLogsByTime } from '@/utils/utils/log-utils';
 import {
@@ -58,8 +60,21 @@ export default function TabbedDashboard({
   agentId,
   agentName,
 }: TabbedDashboardProps) {
+  const { config } = useConfig();
   const { geoLocations, isLoadingGeo } = useGeoLocation(logs);
   const systemStats = useSystemStats(demoMode);
+  const {
+    status: agentStatus,
+    loading: isStatusLoading,
+    error: statusError,
+    lastUpdate: statusLastUpdate,
+    parserTrend,
+  } = useAgentStatus({
+    agentId,
+    demoMode,
+    intervalMs: 15000,
+    trendWindowMinutes: config.parserTrendWindowMinutes,
+  });
 
   // Memoize sorted logs
   const sortedLogs = useMemo(() => {
@@ -125,7 +140,14 @@ export default function TabbedDashboard({
 
         <TabsContent value="system" className="mt-6">
           <Suspense fallback={<SectionSkeleton />}>
-            <SystemSection systemStats={systemStats} />
+            <SystemSection
+              systemStats={systemStats}
+              parserMetrics={agentStatus?.parser_metrics}
+              statusLoading={isStatusLoading}
+              statusError={statusError}
+              statusLastUpdate={statusLastUpdate}
+              parserTrend={parserTrend}
+            />
           </Suspense>
         </TabsContent>
 

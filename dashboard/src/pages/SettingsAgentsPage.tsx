@@ -31,6 +31,7 @@ import AgentFormModal from '@/components/AgentFormModal';
 import AgentBulkOperations from '@/components/AgentBulkOperations';
 import AgentHealthDashboard from '@/components/AgentHealthDashboard';
 import { toast } from 'sonner';
+import { useConfig } from '@/utils/contexts/ConfigContext';
 
 type TabType = 'agents' | 'health' | 'bulk';
 
@@ -44,6 +45,7 @@ function isEnvironmentAgent(agent: Agent): boolean {
 
 export default function AgentSettingsPage() {
   const { agents, selectedAgent, deleteAgent, checkAgentStatus } = useAgents();
+  const { config } = useConfig();
   const [activeTab, setActiveTab] = useState<TabType>('agents');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
@@ -106,6 +108,7 @@ export default function AgentSettingsPage() {
   };
 
   const environmentAgentsCount = agents.filter(isEnvironmentAgent).length;
+  const envOnlyMode = config.agentsEnvOnly;
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -144,6 +147,22 @@ export default function AgentSettingsPage() {
                   <Lock className="w-4 h-4 inline-block" /> icon.
                   To modify or remove them, update your <code className="bg-info/20 px-1 rounded">docker-compose.yml</code> or{' '}
                   <code className="bg-info/20 px-1 rounded">.env</code> file.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {envOnlyMode && (
+          <div className="bg-warning-muted border border-warning/30 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Lock className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-warning mb-1">
+                  Env-Only Agent Mode Enabled
+                </h4>
+                <p className="text-sm text-warning/90">
+                  Agent add/edit/delete is disabled from UI. Manage agents using environment variables only.
                 </p>
               </div>
             </div>
@@ -203,6 +222,7 @@ export default function AgentSettingsPage() {
                     setEditingAgent(null);
                     setShowAddModal(true);
                   }}
+                  disabled={envOnlyMode}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Agent
@@ -230,6 +250,7 @@ export default function AgentSettingsPage() {
                   </p>
                   <Button
                     onClick={() => setShowAddModal(true)}
+                    disabled={envOnlyMode}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Your First Agent
@@ -325,6 +346,7 @@ export default function AgentSettingsPage() {
                           }}
                           variant="outline"
                           size="sm"
+                          disabled={envOnlyMode}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -334,10 +356,12 @@ export default function AgentSettingsPage() {
                           onClick={() => handleDelete(agent)}
                           variant="outline"
                           size="sm"
-                          disabled={isEnvAgent}
-                          className={isEnvAgent ? 'cursor-not-allowed opacity-50' : ''}
+                          disabled={isEnvAgent || envOnlyMode}
+                          className={isEnvAgent || envOnlyMode ? 'cursor-not-allowed opacity-50' : ''}
                           title={
-                            isEnvAgent
+                            envOnlyMode
+                              ? 'Env-only mode enabled'
+                              : isEnvAgent
                               ? 'Cannot delete environment-configured agents'
                               : 'Delete agent'
                           }

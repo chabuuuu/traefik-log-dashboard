@@ -52,6 +52,20 @@ const PARAMETER_OPTIONS: Array<{
     hasThreshold: true,
   },
   {
+    parameter: 'parser_unknown_ratio',
+    label: 'Parser Unknown Ratio',
+    description: 'Percentage of lines classified as unknown by parser',
+    hasLimit: false,
+    hasThreshold: true,
+  },
+  {
+    parameter: 'parser_error_ratio',
+    label: 'Parser Error Ratio',
+    description: 'Percentage of parser errors over parsed lines',
+    hasLimit: false,
+    hasThreshold: true,
+  },
+  {
     parameter: 'response_time',
     label: 'Response Time',
     description: 'Average, P95, P99 response times',

@@ -44,9 +44,21 @@ services:
     volumes:
       - dashboard-data:/data
     environment:
-      # Default agent connection (synced to SQLite on startup)
-      - AGENT_URL=http://traefik-agent:5000
-      - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
+      # Environment-managed agents (supports AGENT_1_*, AGENT_2_*, ...)
+      - AGENT_1_NAME=Primary Agent
+      - AGENT_1_URL=http://traefik-agent:5000
+      - AGENT_1_TOKEN=d41d8cd98f00b204e9800998ecf8427e
+      # Optional second agent example:
+      # - AGENT_2_NAME=Staging Agent
+      # - AGENT_2_URL=http://traefik-agent-staging:5000
+      # - AGENT_2_TOKEN=another-token
+
+      # Lock agent configuration to environment-only mode
+      - DASHBOARD_AGENTS_ENV_ONLY=true
+
+      # Dashboard behavior
+      - DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT=25
+      - DASHBOARD_PARSER_TREND_WINDOW_MINUTES=30
     depends_on:
       traefik-agent:
         condition: service_healthy

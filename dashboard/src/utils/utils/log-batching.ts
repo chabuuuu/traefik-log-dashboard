@@ -16,6 +16,11 @@ export const buildLogKey: LogKeyBuilder = (log) => {
     log.RequestMethod,
     log.ClientHost || log.ClientAddr || '',
     log.DownstreamStatus,
+    log.Duration,
+    log.RequestUserAgent || '',
+    log.RequestReferer || '',
+    log.ServiceURL || '',
+    log.RouterName || '',
   ].join('|');
 };
 

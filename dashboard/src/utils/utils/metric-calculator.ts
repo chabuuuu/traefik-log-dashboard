@@ -6,6 +6,21 @@ import {
   extractUserAgentIdentifier,
 } from '@/utils/utils';
 
+function toDurationMs(log: TraefikLog): number {
+  return log.Duration > 0 ? log.Duration / 1000000 : 0;
+}
+
+function getPositiveDurations(logs: TraefikLog[]): number[] {
+  return logs
+    .map((log) => toDurationMs(log))
+    .filter((duration) => duration > 0);
+}
+
+function getAveragePositiveDuration(logs: TraefikLog[]): number {
+  const durations = getPositiveDurations(logs);
+  return calculateAverage(durations);
+}
+
 export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[] = []): DashboardMetrics {
   // Request metrics
   const total = logs.length;
@@ -13,7 +28,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
   const perSecond = timeSpan > 0 ? total / timeSpan : 0;
 
   // Response time metrics
-  const durations = logs.map(l => l.Duration / 1000000); // Convert to milliseconds
+  const durations = getPositiveDurations(logs);
   const avgDuration = calculateAverage(durations);
   const p95Duration = calculatePercentile(durations, 95);
   const p99Duration = calculatePercentile(durations, 99);
@@ -32,7 +47,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
     .map(([path, routeLogs]) => ({
       path,
       count: routeLogs.length,
-      avgDuration: calculateAverage(routeLogs.map(l => l.Duration / 1000000)),
+      avgDuration: getAveragePositiveDuration(routeLogs),
       method: routeLogs[0]?.RequestMethod || 'GET',
     }))
     .sort((a, b) => b.count - a.count)
@@ -46,14 +61,13 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       return {
         name,
         requests: backendLogs.length,
-        avgDuration: calculateAverage(backendLogs.map(l => l.Duration / 1000000)),
+        avgDuration: getAveragePositiveDuration(backendLogs),
         errorRate: backendLogs.length > 0 ?
           (errors / backendLogs.length) * 100 : 0,
         url: backendLogs[0]?.ServiceURL || '',
       };
     })
-    .sort((a, b) => b.requests - a.requests)
-    .slice(0, 10);
+    .sort((a, b) => b.requests - a.requests);
 
   // Routers
   const routerGroups = groupBy(logs.filter(l => l.RouterName), 'RouterName');
@@ -61,7 +75,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
     .map(([name, routerLogs]) => ({
       name,
       requests: routerLogs.length,
-      avgDuration: calculateAverage(routerLogs.map(l => l.Duration / 1000000)),
+      avgDuration: getAveragePositiveDuration(routerLogs),
       service: routerLogs[0]?.ServiceName || '',
     }))
     .sort((a, b) => b.requests - a.requests)
@@ -163,6 +177,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       p95: p95Duration,
       p99: p99Duration,
       change: 0,
+      samples: durations.length,
     },
     statusCodes: {
       status2xx,
@@ -248,7 +263,7 @@ export function generateTimeline(logs: TraefikLog[]): { timestamp: string; value
 export function getEmptyMetrics(): DashboardMetrics {
   return {
     requests: { total: 0, perSecond: 0, change: 0 },
-    responseTime: { average: 0, p95: 0, p99: 0, change: 0 },
+    responseTime: { average: 0, p95: 0, p99: 0, change: 0, samples: 0 },
     statusCodes: { status2xx: 0, status3xx: 0, status4xx: 0, status5xx: 0, errorRate: 0 },
     topRoutes: [],
     backends: [],

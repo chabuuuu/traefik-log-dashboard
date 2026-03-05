@@ -6,6 +6,9 @@ export interface DashboardConfig {
   showDemoPage: boolean;
   refreshIntervalMs: number;
   maxLogsDisplay: number;
+  trafficTopItemsLimit: number;
+  parserTrendWindowMinutes: number;
+  agentsEnvOnly: boolean;
   defaultAgentUrl?: string;
   defaultAgentToken?: string;
   chartPalette: string[];
@@ -19,6 +22,9 @@ const defaultConfig: DashboardConfig = {
   showDemoPage: true,
   refreshIntervalMs: 5000,
   maxLogsDisplay: 1000,
+  trafficTopItemsLimit: 10,
+  parserTrendWindowMinutes: 30,
+  agentsEnvOnly: false,
   chartPalette: ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'],
   density: 'comfortable',
 };

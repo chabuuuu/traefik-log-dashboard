@@ -29,6 +29,8 @@ export type AlertParameter =
   | 'response_time'
   | 'request_count'
   | 'request_rate'
+  | 'parser_unknown_ratio'
+  | 'parser_error_ratio'
   | 'top_request_addresses'
   | 'top_client_ips';
 
@@ -141,5 +143,7 @@ export interface AlertData {
     };
     request_count?: number;
     request_rate?: number;
+    parser_unknown_ratio?: number;
+    parser_error_ratio?: number;
   };
 }

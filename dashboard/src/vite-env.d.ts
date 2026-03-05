@@ -7,6 +7,9 @@ declare interface Window {
     showDemoPage?: boolean;
     refreshIntervalMs?: number;
     maxLogsDisplay?: number;
+    trafficTopItemsLimit?: number;
+    parserTrendWindowMinutes?: number;
+    agentsEnvOnly?: boolean;
     density?: 'compact' | 'comfortable';
     chartPalette?: string[];
     themeTokens?: Record<string, string>;

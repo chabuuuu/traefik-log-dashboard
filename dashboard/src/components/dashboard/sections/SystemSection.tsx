@@ -4,10 +4,17 @@ import { memo } from 'react';
 import { Cpu, HardDrive, MemoryStick, Activity, Server } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Progress } from '@/components/ui/progress';
-import { SystemMonitoringDisabled, SystemStats, SystemStatsResponse } from '@/utils/types';
+import { ParserMetrics, SystemMonitoringDisabled, SystemStats, SystemStatsResponse } from '@/utils/types';
+import SparklineChart from '@/components/charts/SparklineChart';
+import type { ParserRatioTrendPoint } from '@/hooks/useAgentStatus';
 
 interface SystemSectionProps {
   systemStats: SystemStatsResponse | null | undefined;
+  parserMetrics?: ParserMetrics;
+  parserTrend?: ParserRatioTrendPoint[];
+  statusLoading?: boolean;
+  statusError?: string | null;
+  statusLastUpdate?: Date | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -39,7 +46,133 @@ function getStatusLabel(percentage: number): string {
   return 'Critical';
 }
 
-function SystemSection({ systemStats }: SystemSectionProps) {
+function getParserHealth(metrics: ParserMetrics): { label: string; className: string } {
+  const parsedTotal = metrics.json + metrics.traefik_clf + metrics.generic_clf;
+  const totalSeen = parsedTotal + metrics.unknown;
+  const unknownRate = totalSeen > 0 ? metrics.unknown / totalSeen : 0;
+  const errorRate = parsedTotal > 0 ? metrics.errors / parsedTotal : 0;
+
+  if (errorRate > 0.03 || unknownRate > 0.2) {
+    return { label: 'Critical', className: 'text-destructive' };
+  }
+  if (errorRate > 0.01 || unknownRate > 0.1) {
+    return { label: 'Warning', className: 'text-warning' };
+  }
+  return { label: 'Healthy', className: 'text-success' };
+}
+
+function asPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function ParserMetricsPanel({
+  parserMetrics,
+  parserTrend,
+  statusLoading,
+  statusError,
+  statusLastUpdate,
+}: {
+  parserMetrics?: ParserMetrics;
+  parserTrend?: ParserRatioTrendPoint[];
+  statusLoading?: boolean;
+  statusError?: string | null;
+  statusLastUpdate?: Date | null;
+}) {
+  if (!parserMetrics && !statusLoading && !statusError) {
+    return null;
+  }
+
+  const metrics = parserMetrics || {
+    json: 0,
+    traefik_clf: 0,
+    generic_clf: 0,
+    unknown: 0,
+    errors: 0,
+  };
+  const parsedTotal = metrics.json + metrics.traefik_clf + metrics.generic_clf;
+  const totalSeen = parsedTotal + metrics.unknown;
+  const unknownRate = totalSeen > 0 ? metrics.unknown / totalSeen : 0;
+  const errorRate = parsedTotal > 0 ? metrics.errors / parsedTotal : 0;
+  const health = getParserHealth(metrics);
+  const unknownTrend = (parserTrend ?? []).map((point) => point.unknownRatio * 100);
+  const errorTrend = (parserTrend ?? []).map((point) => point.errorRatio * 100);
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wide">Parser Health</CardTitle>
+        <Server className="h-5 w-5 text-primary" />
+      </CardHeader>
+      <CardContent>
+        {statusError ? (
+          <p className="text-sm text-destructive">{statusError}</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              <span className={`text-sm font-semibold ${health.className}`}>{health.label}</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-muted/40 rounded-md p-3">
+                <p className="text-xs text-muted-foreground">JSON</p>
+                <p className="text-lg font-semibold">{metrics.json}</p>
+              </div>
+              <div className="bg-muted/40 rounded-md p-3">
+                <p className="text-xs text-muted-foreground">Traefik CLF</p>
+                <p className="text-lg font-semibold">{metrics.traefik_clf}</p>
+              </div>
+              <div className="bg-muted/40 rounded-md p-3">
+                <p className="text-xs text-muted-foreground">Generic CLF</p>
+                <p className="text-lg font-semibold">{metrics.generic_clf}</p>
+              </div>
+              <div className="bg-warning-muted rounded-md p-3 border border-warning/30">
+                <p className="text-xs text-muted-foreground">Unknown</p>
+                <p className="text-lg font-semibold">{metrics.unknown}</p>
+              </div>
+              <div className="bg-destructive-muted rounded-md p-3 border border-destructive/30">
+                <p className="text-xs text-muted-foreground">Errors</p>
+                <p className="text-lg font-semibold">{metrics.errors}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Unknown ratio</span>
+                <span className="font-medium">{asPercent(unknownRate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Error ratio</span>
+                <span className="font-medium">{asPercent(errorRate)}</span>
+              </div>
+            </div>
+            {(unknownTrend.length > 1 || errorTrend.length > 1) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-md border border-warning/30 bg-warning-muted p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Unknown ratio trend</span>
+                    <span className="text-xs font-semibold text-foreground">{unknownRate * 100 > 0 ? `${(unknownRate * 100).toFixed(2)}%` : '0.00%'}</span>
+                  </div>
+                  <SparklineChart data={unknownTrend} color="var(--warning)" height={44} />
+                </div>
+                <div className="rounded-md border border-destructive/30 bg-destructive-muted p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Error ratio trend</span>
+                    <span className="text-xs font-semibold text-foreground">{errorRate * 100 > 0 ? `${(errorRate * 100).toFixed(2)}%` : '0.00%'}</span>
+                  </div>
+                  <SparklineChart data={errorTrend} color="var(--destructive)" height={44} />
+                </div>
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">
+              {statusLoading ? 'Refreshing parser status...' : `Last update: ${statusLastUpdate?.toLocaleTimeString() || 'n/a'}`}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SystemSection({ systemStats, parserMetrics, parserTrend, statusLoading, statusError, statusLastUpdate }: SystemSectionProps) {
   const isDisabled = (value: SystemStatsResponse): value is SystemMonitoringDisabled =>
     typeof value === 'object' && value !== null && (value as any).status === 'disabled';
 
@@ -64,6 +197,13 @@ function SystemSection({ systemStats }: SystemSectionProps) {
             </div>
           </CardContent>
         </Card>
+        <ParserMetricsPanel
+          parserMetrics={parserMetrics}
+          parserTrend={parserTrend}
+          statusLoading={statusLoading}
+          statusError={statusError}
+          statusLastUpdate={statusLastUpdate}
+        />
       </div>
     );
   }
@@ -86,6 +226,13 @@ function SystemSection({ systemStats }: SystemSectionProps) {
             </div>
           </CardContent>
         </Card>
+        <ParserMetricsPanel
+          parserMetrics={parserMetrics}
+          parserTrend={parserTrend}
+          statusLoading={statusLoading}
+          statusError={statusError}
+          statusLastUpdate={statusLastUpdate}
+        />
       </div>
     );
   }
@@ -240,6 +387,14 @@ function SystemSection({ systemStats }: SystemSectionProps) {
           </div>
         </CardContent>
       </Card>
+
+      <ParserMetricsPanel
+        parserMetrics={parserMetrics}
+        parserTrend={parserTrend}
+        statusLoading={statusLoading}
+        statusError={statusError}
+        statusLastUpdate={statusLastUpdate}
+      />
     </div>
   );
 }

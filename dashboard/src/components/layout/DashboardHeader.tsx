@@ -23,6 +23,12 @@ interface DashboardHeaderProps {
   logsCount?: number;
   showControls?: boolean;
   agentName?: string | null;
+  dedupeDebug?: {
+    received: number;
+    kept: number;
+    dropped: number;
+    dropRate: number;
+  } | null;
 }
 
 export function DashboardHeader({
@@ -34,6 +40,7 @@ export function DashboardHeader({
   logsCount,
   showControls = false,
   agentName,
+  dedupeDebug,
 }: DashboardHeaderProps) {
   const { theme, setTheme } = useTheme();
 
@@ -78,6 +85,12 @@ export function DashboardHeader({
             {logsCount !== undefined && logsCount > 0 && (
               <Badge variant="outline" className="hidden sm:flex">
                 {logsCount.toLocaleString()} logs
+              </Badge>
+            )}
+
+            {import.meta.env.DEV && dedupeDebug && dedupeDebug.received > 0 && (
+              <Badge variant="outline" className="hidden xl:flex text-warning border-warning/30 bg-warning-muted">
+                Dedupe drop {dedupeDebug.dropRate.toFixed(1)}% ({dedupeDebug.dropped}/{dedupeDebug.received})
               </Badge>
             )}
 

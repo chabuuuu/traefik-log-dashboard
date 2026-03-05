@@ -13,6 +13,13 @@ const STREAM_FLUSH_INTERVAL = 350;
 const POLL_MAX_INTERVAL = 30000;
 const STALE_CONNECTION_MS = 45000;
 
+export interface DedupeDebugStats {
+  received: number;
+  kept: number;
+  dropped: number;
+  dropRate: number;
+}
+
 export function useLogFetcher() {
   const { config } = useConfig();
   const { selectedAgent } = useAgents();
@@ -24,10 +31,13 @@ export function useLogFetcher() {
   const [isPaused, setIsPaused] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
   const [agentName, setAgentName] = useState<string | null>(null);
+  const [dedupeDebug, setDedupeDebug] = useState<DedupeDebugStats | null>(null);
 
   const positionRef = useRef<number>(-1);
   const isFirstFetch = useRef(true);
   const seenLogsRef = useRef<Set<string>>(new Set());
+  const dedupeReceivedRef = useRef(0);
+  const dedupeDroppedRef = useRef(0);
   const maxSeenLogs = config.maxLogsDisplay * 2; // Limit seen logs cache to prevent infinite growth
   const pollDelayRef = useRef(config.refreshIntervalMs);
   const lastSuccessRef = useRef<number | null>(null);
@@ -49,6 +59,9 @@ export function useLogFetcher() {
     positionRef.current = -1;
     isFirstFetch.current = true;
     seenLogsRef.current.clear();
+    dedupeReceivedRef.current = 0;
+    dedupeDroppedRef.current = 0;
+    setDedupeDebug(null);
     lastSuccessRef.current = null;
 
     if (!selectedAgentID) {
@@ -78,6 +91,20 @@ export function useLogFetcher() {
       if (!isMounted || rawLogs.length === 0) return;
 
       const uniqueLogs = dedupeLogs(rawLogs, seenLogsRef.current, maxSeenLogs, buildLogKey);
+      const dropped = rawLogs.length - uniqueLogs.length;
+      dedupeReceivedRef.current += rawLogs.length;
+      dedupeDroppedRef.current += dropped;
+      if (import.meta.env.DEV) {
+        const received = dedupeReceivedRef.current;
+        const droppedTotal = dedupeDroppedRef.current;
+        const kept = received - droppedTotal;
+        setDedupeDebug({
+          received,
+          kept,
+          dropped: droppedTotal,
+          dropRate: received > 0 ? (droppedTotal / received) * 100 : 0,
+        });
+      }
 
       if (uniqueLogs.length === 0) {
         setLoading(false);
@@ -86,7 +113,10 @@ export function useLogFetcher() {
 
       let enrichedLogs = uniqueLogs;
       try {
-        enrichedLogs = await enrichLogsWithGeoLocation(uniqueLogs);
+        const shouldEnrichGeo = uniqueLogs.some((log) => Boolean(log.ClientHost || log.ClientAddr));
+        if (shouldEnrichGeo) {
+          enrichedLogs = await enrichLogsWithGeoLocation(uniqueLogs);
+        }
       } catch (geoError) {
         console.warn('GeoLocation enrichment failed, continuing without geo data:', geoError);
       }
@@ -246,6 +276,7 @@ export function useLogFetcher() {
     isPaused,
     setIsPaused,
     agentId,
-    agentName
+    agentName,
+    dedupeDebug,
   };
 }

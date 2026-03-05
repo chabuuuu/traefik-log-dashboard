@@ -14,6 +14,12 @@ interface DashboardShellProps {
   logsCount?: number;
   showControls?: boolean;
   agentName?: string | null;
+  dedupeDebug?: {
+    received: number;
+    kept: number;
+    dropped: number;
+    dropRate: number;
+  } | null;
 }
 
 export function DashboardShell({
@@ -26,6 +32,7 @@ export function DashboardShell({
   logsCount,
   showControls = false,
   agentName,
+  dedupeDebug,
 }: DashboardShellProps) {
   return (
     <SidebarProvider>
@@ -40,6 +47,7 @@ export function DashboardShell({
           logsCount={logsCount}
           showControls={showControls}
           agentName={agentName}
+          dedupeDebug={dedupeDebug}
         />
         <div className="flex-1 overflow-auto p-4 md:p-6">
           {children}

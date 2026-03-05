@@ -16,6 +16,7 @@ import {
   AlertInterval,
   AlertRule,
   AlertWebhook,
+  ParserMetricsSnapshot,
 } from './types';
 import { buildAggregatedMetrics, filterLogsByWindow, thresholdValueForParameter } from './metrics';
 import { buildAlertMessage, sendWebhookNotification } from './notifications';
@@ -66,8 +67,16 @@ interface StartAlertSchedulerInput {
 interface SchedulerExecutionContext {
   errors: string[];
   logCache: Map<string, Promise<AgentLogRecord[]>>;
+  parserMetricsCache: Map<string, Promise<ParserMetricsSnapshot | null>>;
   now: Date;
   webhooksByID: Map<string, AlertWebhook>;
+}
+
+interface ParserCounterTotals {
+  parsed: number;
+  total: number;
+  unknown: number;
+  errors: number;
 }
 
 export interface AlertSchedulerCycleResult {
@@ -80,6 +89,7 @@ export interface AlertSchedulerCycleResult {
 
 let schedulerTimer: NodeJS.Timeout | null = null;
 let cycleInProgress = false;
+const parserCounterBaselineByAgent = new Map<string, ParserCounterTotals>();
 
 function normalizeAgentURL(agent: DBAgent): string {
   return (agent.configured_url || agent.url).replace(/\/+$/, '');
@@ -101,6 +111,63 @@ function getFetchLines(): number {
   }
 
   return DEFAULT_FETCH_LINES;
+}
+
+function hasParserThresholdParameters(rule: AlertRule): boolean {
+  return rule.parameters.some((parameter) =>
+    parameter.enabled
+    && (parameter.parameter === 'parser_unknown_ratio' || parameter.parameter === 'parser_error_ratio'),
+  );
+}
+
+function getNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function toParserCounterTotals(metrics: ParserMetricsSnapshot | null): ParserCounterTotals | null {
+  if (!metrics) {
+    return null;
+  }
+
+  const json = getNumber(metrics.json);
+  const traefikCLF = getNumber(metrics.traefik_clf);
+  const genericCLF = getNumber(metrics.generic_clf);
+  const unknown = getNumber(metrics.unknown);
+  const errors = getNumber(metrics.errors);
+
+  const parsed = json + traefikCLF + genericCLF;
+  const total = parsed + unknown;
+
+  return {
+    parsed,
+    total,
+    unknown,
+    errors,
+  };
+}
+
+function computeParserRatios(
+  current: ParserCounterTotals,
+  previous?: ParserCounterTotals,
+): { unknownRatio: number; errorRatio: number } {
+  if (previous) {
+    const totalDelta = Math.max(0, current.total - previous.total);
+    const unknownDelta = Math.max(0, current.unknown - previous.unknown);
+    const parsedDelta = Math.max(0, current.parsed - previous.parsed);
+    const errorsDelta = Math.max(0, current.errors - previous.errors);
+
+    if (totalDelta > 0) {
+      return {
+        unknownRatio: unknownDelta / totalDelta,
+        errorRatio: parsedDelta > 0 ? errorsDelta / parsedDelta : 0,
+      };
+    }
+  }
+
+  return {
+    unknownRatio: current.total > 0 ? current.unknown / current.total : 0,
+    errorRatio: current.parsed > 0 ? current.errors / current.parsed : 0,
+  };
 }
 
 function getWindowMinutes(rule: AlertRule): number {
@@ -248,6 +315,36 @@ async function fetchRecentAgentLogs(input: FetchAgentLogsInput): Promise<AgentLo
   }
 }
 
+async function fetchParserMetrics(agent: DBAgent): Promise<ParserMetricsSnapshot | null> {
+  const controller = new AbortController();
+  const timeoutID = setTimeout(() => controller.abort(), 20_000);
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (agent.token) {
+      headers.Authorization = `Bearer ${agent.token}`;
+    }
+
+    const response = await fetch(`${normalizeAgentURL(agent)}/api/logs/status`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Agent status API responded with ${response.status}`);
+    }
+
+    const payload = await response.json() as { parser_metrics?: ParserMetricsSnapshot };
+    return payload.parser_metrics ?? null;
+  } finally {
+    clearTimeout(timeoutID);
+  }
+}
+
 function getRuleTargetAgents(rule: AlertRule): DBAgent[] {
   if (rule.agent_id) {
     const agent = getAgentById(rule.agent_id);
@@ -274,6 +371,19 @@ async function getCachedAgentLogs(
   }
 
   return context.logCache.get(key)!;
+}
+
+async function getCachedParserMetrics(
+  context: SchedulerExecutionContext,
+  agent: DBAgent,
+): Promise<ParserMetricsSnapshot | null> {
+  const key = `${agent.id}:${context.now.getTime()}`;
+
+  if (!context.parserMetricsCache.has(key)) {
+    context.parserMetricsCache.set(key, fetchParserMetrics(agent));
+  }
+
+  return context.parserMetricsCache.get(key)!;
 }
 
 async function dispatchRuleNotifications(input: RuleDispatchInput): Promise<void> {
@@ -345,7 +455,26 @@ async function processRuleForAgent(input: ProcessAgentRuleInput): Promise<boolea
     logs,
     parameters: input.rule.parameters,
     windowMs: input.windowMs,
+    parserRatios: undefined,
   });
+
+  if (hasParserThresholdParameters(input.rule)) {
+    try {
+      const parserMetrics = await getCachedParserMetrics(input.context, input.agent);
+      const currentCounters = toParserCounterTotals(parserMetrics);
+
+      if (currentCounters) {
+        const previousCounters = parserCounterBaselineByAgent.get(input.agent.id);
+        const parserRatios = computeParserRatios(currentCounters, previousCounters);
+        parserCounterBaselineByAgent.set(input.agent.id, currentCounters);
+        aggregatedMetrics.parser_unknown_ratio = parserRatios.unknownRatio * 100;
+        aggregatedMetrics.parser_error_ratio = parserRatios.errorRatio * 100;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch parser metrics';
+      addCycleError(input.context, `rule=${input.rule.id} agent=${input.agent.id}: ${message}`);
+    }
+  }
 
   let shouldTrigger = true;
 
@@ -467,6 +596,7 @@ export async function runAlertSchedulerCycle(): Promise<AlertSchedulerCycleResul
   const context: SchedulerExecutionContext = {
     errors: [],
     logCache: new Map(),
+    parserMetricsCache: new Map(),
     now: new Date(),
     webhooksByID: new Map(listAlertWebhooks().map((webhook) => [webhook.id, webhook])),
   };
