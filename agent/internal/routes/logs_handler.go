@@ -35,11 +35,11 @@ func (h *Handler) HandleAccessLogs(w http.ResponseWriter, r *http.Request) {
 		if tail || position == -2 {
 			// First request or tail mode - get last N lines
 			positions := []logs.Position{}
-			result, err = logs.GetLogs(h.config.AccessPath, positions, false, false)
+			result, err = logs.GetLogsWithLimit(h.config.AccessPath, positions, false, false, lines)
 		} else {
 			// Use provided position
 			positions := []logs.Position{{Position: position}}
-			result, err = logs.GetLogs(h.config.AccessPath, positions, false, false)
+			result, err = logs.GetLogsWithLimit(h.config.AccessPath, positions, false, false, lines)
 		}
 	} else {
 		// Single file
@@ -59,7 +59,7 @@ func (h *Handler) HandleAccessLogs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		positions := []logs.Position{{Position: usePosition}}
-		result, err = logs.GetLogs(h.config.AccessPath, positions, false, false)
+		result, err = logs.GetLogsWithLimit(h.config.AccessPath, positions, false, false, lines)
 
 		// Update tracked position if we got results
 		if err == nil && len(result.Positions) > 0 {
@@ -99,10 +99,10 @@ func (h *Handler) HandleErrorLogs(w http.ResponseWriter, r *http.Request) {
 	if fileInfo.IsDir() {
 		if tail || position == -2 {
 			positions := []logs.Position{}
-			result, err = logs.GetLogs(h.config.ErrorPath, positions, true, false)
+			result, err = logs.GetLogsWithLimit(h.config.ErrorPath, positions, true, false, lines)
 		} else {
 			positions := []logs.Position{{Position: position}}
-			result, err = logs.GetLogs(h.config.ErrorPath, positions, true, false)
+			result, err = logs.GetLogsWithLimit(h.config.ErrorPath, positions, true, false, lines)
 		}
 	} else {
 		trackedPos := h.state.GetFilePosition(h.config.ErrorPath)
@@ -117,7 +117,7 @@ func (h *Handler) HandleErrorLogs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		positions := []logs.Position{{Position: usePosition}}
-		result, err = logs.GetLogs(h.config.ErrorPath, positions, true, false)
+		result, err = logs.GetLogsWithLimit(h.config.ErrorPath, positions, true, false, lines)
 
 		if err == nil && len(result.Positions) > 0 {
 			h.state.SetFilePosition(h.config.ErrorPath, result.Positions[0].Position)

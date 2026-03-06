@@ -27,26 +27,38 @@ var (
 )
 
 func GetLogs(path string, positions []Position, isErrorLog bool, includeCompressed bool) (LogResult, error) {
+	return GetLogsWithLimit(path, positions, isErrorLog, includeCompressed, 1000)
+}
+
+func GetLogsWithLimit(path string, positions []Position, isErrorLog bool, includeCompressed bool, tailLines int) (LogResult, error) {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return LogResult{}, fmt.Errorf("path error: %w", err)
 	}
 
+	if tailLines <= 0 {
+		tailLines = 1000
+	}
+
 	var result LogResult
 	if fileInfo.IsDir() {
-		result, err = GetDirectoryLogs(path, positions, isErrorLog, includeCompressed)
+		result, err = getDirectoryLogsWithLimit(path, positions, isErrorLog, includeCompressed, tailLines)
 	} else {
 		singlePos := int64(0)
 		if len(positions) > 0 {
 			singlePos = positions[0].Position
 		}
-		result, err = GetLog(path, singlePos)
+		result, err = getLogWithLimit(path, singlePos, tailLines)
 	}
 
 	return result, err
 }
 
 func GetLog(filePath string, position int64) (LogResult, error) {
+	return getLogWithLimit(filePath, position, 1000)
+}
+
+func getLogWithLimit(filePath string, position int64, tailLines int) (LogResult, error) {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		logger.Log.Println("File not found")
 		return LogResult{}, fmt.Errorf("file not found: %s", filePath)
@@ -61,7 +73,7 @@ func GetLog(filePath string, position int64) (LogResult, error) {
 			return LogResult{}, fmt.Errorf("error reading compressed log file: %w", err)
 		}
 	} else {
-		result, err = readLogFile(filePath, position)
+		result, err = readLogFile(filePath, position, tailLines)
 		if err != nil {
 			return LogResult{}, fmt.Errorf("error reading log file: %w", err)
 		}
@@ -70,7 +82,7 @@ func GetLog(filePath string, position int64) (LogResult, error) {
 	return result, nil
 }
 
-func readLogFile(filePath string, position int64) (LogResult, error) {
+func readLogFile(filePath string, position int64, tailLines int) (LogResult, error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return LogResult{}, err
@@ -80,8 +92,7 @@ func readLogFile(filePath string, position int64) (LogResult, error) {
 
 	// If position is -1, start from end of file (tail mode)
 	if position == -1 {
-		// Read last 1000 lines
-		return tailLogFile(filePath, 1000)
+		return tailLogFile(filePath, tailLines)
 	}
 
 	// If position >= fileSize, no new logs
@@ -428,6 +439,10 @@ func readCompressedLogFile(filePath string) (LogResult, error) {
 }
 
 func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, includeCompressed bool) (LogResult, error) {
+	return getDirectoryLogsWithLimit(dirPath, positions, isErrorLog, includeCompressed, 1000)
+}
+
+func getDirectoryLogsWithLimit(dirPath string, positions []Position, isErrorLog bool, includeCompressed bool, tailLines int) (LogResult, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return LogResult{}, fmt.Errorf("failed to read directory: %w", err)
@@ -467,7 +482,7 @@ func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, inc
 	if len(positions) == 0 && len(logFiles) > 0 {
 		lastFile := logFiles[len(logFiles)-1]
 		fullPath := filepath.Join(dirPath, lastFile)
-		result, err := tailLogFile(fullPath, 1000)
+		result, err := tailLogFile(fullPath, tailLines)
 		if err == nil {
 			return result, nil
 		}
@@ -477,7 +492,7 @@ func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, inc
 		fullPath := filepath.Join(dirPath, fileName)
 		position := posMap[fileName]
 
-		result, err := GetLog(fullPath, position)
+		result, err := getLogWithLimit(fullPath, position, tailLines)
 		if err != nil {
 			logger.Log.Printf("Error reading log file %s: %v", fileName, err)
 			continue

@@ -41,7 +41,15 @@ export function useLogFetcher() {
   const seenLogsRef = useRef<Set<string>>(new Set());
   const dedupeReceivedRef = useRef(0);
   const dedupeDroppedRef = useRef(0);
-  const maxSeenLogs = maxLogsDisplay * 2; // Limit seen logs cache to prevent infinite growth
+
+  // Use refs for derived config values to prevent effect re-fires that lose initial tail data
+  const maxLogsDisplayRef = useRef(maxLogsDisplay);
+  maxLogsDisplayRef.current = maxLogsDisplay;
+  const maxSeenLogsRef = useRef(maxLogsDisplay * 2);
+  maxSeenLogsRef.current = maxLogsDisplay * 2;
+  const requestedLinesRef = useRef(requestedLines);
+  requestedLinesRef.current = requestedLines;
+
   const pollDelayRef = useRef(config.refreshIntervalMs);
   const lastSuccessRef = useRef<number | null>(null);
 
@@ -98,7 +106,7 @@ export function useLogFetcher() {
     const processLogs = async (rawLogs: TraefikLog[]) => {
       if (!isMounted || rawLogs.length === 0) return;
 
-      const uniqueLogs = dedupeLogs(rawLogs, seenLogsRef.current, maxSeenLogs, buildLogKey);
+      const uniqueLogs = dedupeLogs(rawLogs, seenLogsRef.current, maxSeenLogsRef.current, buildLogKey);
       const dropped = rawLogs.length - uniqueLogs.length;
       dedupeReceivedRef.current += rawLogs.length;
       dedupeDroppedRef.current += dropped;
@@ -136,7 +144,7 @@ export function useLogFetcher() {
           ? enrichedLogs
           : [...prevLogs, ...enrichedLogs];
         isFirstFetch.current = false;
-        return nextLogs.slice(-maxLogsDisplay);
+        return nextLogs.slice(-maxLogsDisplayRef.current);
       });
       setConnected(true);
       setError(null);
@@ -185,7 +193,7 @@ export function useLogFetcher() {
         const data = await apiClient.getAccessLogs({
           agentId: selectedAgentID,
           position,
-          lines: requestedLines,
+          lines: requestedLinesRef.current,
           signal: controller.signal,
         });
         if (!isMounted) return;
@@ -278,7 +286,9 @@ export function useLogFetcher() {
       if (pollTimeout) clearTimeout(pollTimeout);
       if (staleInterval) clearInterval(staleInterval);
     };
-  }, [config.refreshIntervalMs, isPaused, isTabVisible, maxLogsDisplay, maxSeenLogs, requestedLines, selectedAgent?.id, selectedAgent?.name]);
+  // maxLogsDisplay, maxSeenLogs, requestedLines are accessed via refs to prevent
+  // effect re-fires that would reset position tracking and lose initial tail data
+  }, [config.refreshIntervalMs, isPaused, isTabVisible, selectedAgent?.id, selectedAgent?.name]);
 
   useEffect(() => {
     setLogs((prevLogs) => prevLogs.slice(-maxLogsDisplay));
