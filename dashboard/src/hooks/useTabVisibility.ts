@@ -12,7 +12,10 @@ import { useState, useEffect } from 'react';
  * @returns boolean indicating if tab is visible
  */
 export function useTabVisibility(): boolean {
-  const [isTabVisible, setIsTabVisible] = useState(true);
+  const [isTabVisible, setIsTabVisible] = useState(() => {
+    if (typeof document === 'undefined') return true;
+    return !document.hidden;
+  });
 
   useEffect(() => {
     const handleVisibilityChange = () => {

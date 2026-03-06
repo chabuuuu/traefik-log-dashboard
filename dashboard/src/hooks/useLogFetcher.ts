@@ -23,6 +23,8 @@ export interface DedupeDebugStats {
 export function useLogFetcher() {
   const { config } = useConfig();
   const { selectedAgent } = useAgents();
+  const maxLogsDisplay = Math.max(1, config.maxLogsDisplay);
+  const requestedLines = Math.min(maxLogsDisplay, 20000);
   const [logs, setLogs] = useState<TraefikLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,10 +37,11 @@ export function useLogFetcher() {
 
   const positionRef = useRef<number>(-1);
   const isFirstFetch = useRef(true);
+  const previousAgentRef = useRef<string | null>(null);
   const seenLogsRef = useRef<Set<string>>(new Set());
   const dedupeReceivedRef = useRef(0);
   const dedupeDroppedRef = useRef(0);
-  const maxSeenLogs = config.maxLogsDisplay * 2; // Limit seen logs cache to prevent infinite growth
+  const maxSeenLogs = maxLogsDisplay * 2; // Limit seen logs cache to prevent infinite growth
   const pollDelayRef = useRef(config.refreshIntervalMs);
   const lastSuccessRef = useRef<number | null>(null);
 
@@ -48,21 +51,26 @@ export function useLogFetcher() {
   useEffect(() => {
     const selectedAgentID = selectedAgent?.id;
     const selectedAgentName = selectedAgent?.name ?? null;
+    const hasAgentChanged = previousAgentRef.current !== selectedAgentID;
 
-    setLogs([]);
-    setConnected(false);
-    setLastUpdate(null);
-    setError(null);
     setAgentId(selectedAgentID ?? null);
     setAgentName(selectedAgentName);
-    setLoading(true);
-    positionRef.current = -1;
-    isFirstFetch.current = true;
-    seenLogsRef.current.clear();
-    dedupeReceivedRef.current = 0;
-    dedupeDroppedRef.current = 0;
-    setDedupeDebug(null);
-    lastSuccessRef.current = null;
+
+    if (hasAgentChanged) {
+      setLogs([]);
+      setConnected(false);
+      setLastUpdate(null);
+      setError(null);
+      setLoading(true);
+      positionRef.current = -1;
+      isFirstFetch.current = true;
+      seenLogsRef.current.clear();
+      dedupeReceivedRef.current = 0;
+      dedupeDroppedRef.current = 0;
+      setDedupeDebug(null);
+      lastSuccessRef.current = null;
+      previousAgentRef.current = selectedAgentID ?? null;
+    }
 
     if (!selectedAgentID) {
       setLoading(false);
@@ -128,7 +136,7 @@ export function useLogFetcher() {
           ? enrichedLogs
           : [...prevLogs, ...enrichedLogs];
         isFirstFetch.current = false;
-        return nextLogs.slice(-config.maxLogsDisplay);
+        return nextLogs.slice(-maxLogsDisplay);
       });
       setConnected(true);
       setError(null);
@@ -167,7 +175,7 @@ export function useLogFetcher() {
       }, delay);
     };
 
-    const pollLogs = async () => {
+    const pollLogs = async (scheduleNextPoll = true) => {
       if (isPaused || !isTabVisible || !isMounted) return;
       if (!selectedAgentID) return;
 
@@ -177,7 +185,7 @@ export function useLogFetcher() {
         const data = await apiClient.getAccessLogs({
           agentId: selectedAgentID,
           position,
-          lines: 1000,
+          lines: requestedLines,
           signal: controller.signal,
         });
         if (!isMounted) return;
@@ -213,7 +221,7 @@ export function useLogFetcher() {
         pollDelayRef.current = Math.min(pollDelayRef.current * 1.6, POLL_MAX_INTERVAL);
       } finally {
         activeControllers.delete(controller);
-        if (isMounted && !isPaused && isTabVisible) {
+        if (scheduleNextPoll && isMounted && !isPaused && isTabVisible) {
           schedulePoll();
         }
       }
@@ -249,9 +257,14 @@ export function useLogFetcher() {
       }
     };
 
-    // Start with streaming; fallback to polling on failure or when paused
+    // Always catch up with cursor-based polling before opening stream.
+    // This preserves missed logs across tab visibility changes.
     if (!isPaused && isTabVisible) {
-      startStreaming();
+      void (async () => {
+        await pollLogs(false);
+        if (!isMounted || isPaused || !isTabVisible) return;
+        await startStreaming();
+      })();
     } else if (isTabVisible) {
       schedulePoll();
     }
@@ -265,7 +278,11 @@ export function useLogFetcher() {
       if (pollTimeout) clearTimeout(pollTimeout);
       if (staleInterval) clearInterval(staleInterval);
     };
-  }, [config.maxLogsDisplay, config.refreshIntervalMs, isPaused, isTabVisible, maxSeenLogs, selectedAgent?.id, selectedAgent?.name]);
+  }, [config.refreshIntervalMs, isPaused, isTabVisible, maxLogsDisplay, maxSeenLogs, requestedLines, selectedAgent?.id, selectedAgent?.name]);
+
+  useEffect(() => {
+    setLogs((prevLogs) => prevLogs.slice(-maxLogsDisplay));
+  }, [maxLogsDisplay]);
 
   return {
     logs,
