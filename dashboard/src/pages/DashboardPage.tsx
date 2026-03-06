@@ -5,9 +5,11 @@ import { useLogFetcher } from '@/hooks/useLogFetcher';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import DashboardWithFilters from '@/components/dashboard/DashboardWithFilters';
+import { useFilters } from '@/utils/contexts/FilterContext';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { settings, updateSettings } = useFilters();
   const {
     logs,
     loading,
@@ -86,6 +88,10 @@ export default function DashboardPage() {
       logsCount={logs.length}
       showControls={true}
       agentName={agentName}
+      hideInternalTraffic={settings.hideInternalTraffic}
+      onToggleHideInternalTraffic={() => {
+        updateSettings({ hideInternalTraffic: !settings.hideInternalTraffic });
+      }}
       dedupeDebug={dedupeDebug}
     >
       <ErrorBoundary>

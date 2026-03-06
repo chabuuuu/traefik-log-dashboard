@@ -7,6 +7,9 @@ export interface RuntimeConfig {
   trafficTopItemsLimit?: number;
   parserTrendWindowMinutes?: number;
   agentsEnvOnly?: boolean;
+  hideInternalTrafficDefault?: boolean;
+  internalNoisePathPrefixes?: string[];
+  internalNoiseServicePatterns?: string[];
   density?: 'compact' | 'comfortable';
   chartPalette?: string[];
   themeTokens?: Record<string, string>;

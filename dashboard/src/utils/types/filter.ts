@@ -30,6 +30,7 @@ export interface FilterSettings {
   excludeStatusCodes: number[];
   excludeBots: boolean;
   excludePaths: string[];
+  hideInternalTraffic: boolean;
 }
 
 export const defaultFilterSettings: FilterSettings = {
@@ -48,4 +49,5 @@ export const defaultFilterSettings: FilterSettings = {
   excludeStatusCodes: [],
   excludeBots: false,
   excludePaths: [],
+  hideInternalTraffic: false,
 };

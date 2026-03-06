@@ -3,6 +3,7 @@
 
 import { useMemo } from 'react';
 import { useFilters } from '@/utils/contexts/FilterContext';
+import { useConfig } from '@/utils/contexts/ConfigContext';
 import { applyFilters, getActiveFilterSummary } from '@/utils/utils/filter-utils';
 import { TraefikLog } from '@/utils/types';
 import TabbedDashboard from './TabbedDashboard';
@@ -20,11 +21,15 @@ interface DashboardWithFiltersProps {
 
 export default function DashboardWithFilters({ logs, demoMode = false, agentId, agentName }: DashboardWithFiltersProps) {
   const { settings } = useFilters();
+  const { config } = useConfig();
 
   // Apply filters to logs
   const filteredLogs = useMemo(() => {
-    return applyFilters(logs, settings);
-  }, [logs, settings]);
+    return applyFilters(logs, settings, {
+      pathPrefixes: config.internalNoisePathPrefixes,
+      servicePatterns: config.internalNoiseServicePatterns,
+    });
+  }, [config.internalNoisePathPrefixes, config.internalNoiseServicePatterns, logs, settings]);
 
   // Get active filter summary
   const filterSummary = useMemo(() => {

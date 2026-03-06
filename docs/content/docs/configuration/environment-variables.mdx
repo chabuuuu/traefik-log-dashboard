@@ -59,6 +59,9 @@ Legacy fallback (kept for compatibility): `AGENT_API_URL`, `AGENT_API_TOKEN`, `A
 | `DASHBOARD_MAX_LOGS_DISPLAY` | Maximum logs retained in dashboard state | `1000` | No |
 | `DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT` | Top-N shown in Traffic cards/lists | `10` | No |
 | `DASHBOARD_PARSER_TREND_WINDOW_MINUTES` | Parser trend window in System tab (15-30) | `30` | No |
+| `DASHBOARD_HIDE_INTERNAL_TRAFFIC_DEFAULT` | Default state for header toggle to hide dashboard/agent noise traffic | `true` | No |
+| `DASHBOARD_INTERNAL_NOISE_PATH_PREFIXES` | Comma-separated request path prefixes treated as internal noise | `/api/system/resources,/api/logs/status,/api/location,/api/dashboard/agents/check-status` | No |
+| `DASHBOARD_INTERNAL_NOISE_SERVICE_PATTERNS` | Comma-separated `ServiceName`/`RouterName` substrings treated as internal noise | `dashboard,agent,traefik-log-dashboard,log-dashboard` | No |
 | `SHOW_DEMO_PAGE` | Show demo dashboard link | `true` | No |
 | `DASHBOARD_DENSITY` | UI density (`compact`, `comfortable`) | `comfortable` | No |
 
@@ -118,6 +121,9 @@ environment:
   - DASHBOARD_MAX_LOGS_DISPLAY=1000
   - DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT=25
   - DASHBOARD_PARSER_TREND_WINDOW_MINUTES=30
+  - DASHBOARD_HIDE_INTERNAL_TRAFFIC_DEFAULT=true
+  - DASHBOARD_INTERNAL_NOISE_PATH_PREFIXES=/api/system/resources,/api/logs/status,/api/location,/api/dashboard/agents/check-status
+  - DASHBOARD_INTERNAL_NOISE_SERVICE_PATTERNS=dashboard,agent,traefik-log-dashboard,log-dashboard
   - SHOW_DEMO_PAGE=true
   - GEOIP_LOOKUP_ENABLED=true
   - GEOIP_PROVIDER_BASE_URL=https://ipwho.is

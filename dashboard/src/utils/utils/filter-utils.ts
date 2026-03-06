@@ -4,6 +4,30 @@ import { TraefikLog } from '../types';
 import { FilterSettings, FilterCondition } from '../types/filter';
 import { isPrivateIP } from './ip-utils';
 
+export interface InternalNoiseRules {
+  pathPrefixes: string[];
+  servicePatterns: string[];
+}
+
+function normalizeForMatch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function isInternalNoiseLog(log: TraefikLog, rules: InternalNoiseRules): boolean {
+  const requestPath = normalizeForMatch(log.RequestPath || '');
+  const serviceName = normalizeForMatch(log.ServiceName || '');
+  const routerName = normalizeForMatch(log.RouterName || '');
+
+  const pathPrefixes = rules.pathPrefixes.map(normalizeForMatch).filter(Boolean);
+  const servicePatterns = rules.servicePatterns.map(normalizeForMatch).filter(Boolean);
+
+  if (pathPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
+    return true;
+  }
+
+  return servicePatterns.some((pattern) => serviceName.includes(pattern) || routerName.includes(pattern));
+}
+
 /**
  * Extract real IP from headers based on proxy settings
  */
@@ -134,74 +158,83 @@ function isBot(userAgent: string): boolean {
 /**
  * Apply filter settings to logs array
  */
-export function applyFilters(logs: TraefikLog[], settings: FilterSettings): TraefikLog[] {
+export function applyFilters(
+  logs: TraefikLog[],
+  settings: FilterSettings,
+  internalRules: InternalNoiseRules = { pathPrefixes: [], servicePatterns: [] },
+): TraefikLog[] {
   return logs
-    .map(log => replaceClientIP(log, settings)) // Replace client IP if enabled
-    .filter(log => {
+    .map((log) => replaceClientIP(log, settings)) // Replace client IP if enabled
+    .filter((log) => {
+      // Filter dashboard/agent internal noise
+      if (settings.hideInternalTraffic && isInternalNoiseLog(log, internalRules)) {
+        return false;
+      }
+
       // Get real IP based on proxy settings
       const realIP = getRealIP(log, settings);
 
-    // Filter excluded IPs
-    if (settings.excludedIPs.includes(realIP)) {
-      return false;
-    }
-
-    // Filter unknown IPs
-    if (settings.excludeUnknownIPs && (!realIP || realIP === 'unknown')) {
-      return false;
-    }
-
-    // Filter private IPs
-    if (settings.excludePrivateIPs && isPrivateIP(realIP)) {
-      return false;
-    }
-
-    // Filter unknown routers/services
-    if (settings.excludeUnknownRoutersServices) {
-      if (log.RouterName === 'Unknown' || log.ServiceName === 'Unknown') {
+      // Filter excluded IPs
+      if (settings.excludedIPs.includes(realIP)) {
         return false;
       }
-    }
 
-    // Filter status codes
-    if (settings.excludeStatusCodes.includes(log.DownstreamStatus)) {
-      return false;
-    }
-
-    // Filter bots
-    if (settings.excludeBots && isBot(log.RequestUserAgent || '')) {
-      return false;
-    }
-
-    // Filter paths
-    for (const path of settings.excludePaths) {
-      if (log.RequestPath && log.RequestPath.includes(path)) {
+      // Filter unknown IPs
+      if (settings.excludeUnknownIPs && (!realIP || realIP === 'unknown')) {
         return false;
       }
-    }
 
-    // Apply custom conditions with mode support
-    // First check if any INCLUDE filters are active
-    const includeFilters = settings.customConditions.filter(c => c.enabled && c.mode === 'include');
-    const excludeFilters = settings.customConditions.filter(c => c.enabled && (!c.mode || c.mode === 'exclude'));
-
-    // If there are active INCLUDE filters, log must match at least one of them
-    if (includeFilters.length > 0) {
-      const matchesAnyInclude = includeFilters.some(condition => matchesCondition(log, condition));
-      if (!matchesAnyInclude) {
-        return false; // Log doesn't match any include filter, so exclude it
-      }
-    }
-
-    // Then check EXCLUDE filters - if any match, exclude the log
-    for (const condition of excludeFilters) {
-      if (matchesCondition(log, condition)) {
+      // Filter private IPs
+      if (settings.excludePrivateIPs && isPrivateIP(realIP)) {
         return false;
       }
-    }
 
-    return true;
-  });
+      // Filter unknown routers/services
+      if (settings.excludeUnknownRoutersServices) {
+        if (log.RouterName === 'Unknown' || log.ServiceName === 'Unknown') {
+          return false;
+        }
+      }
+
+      // Filter status codes
+      if (settings.excludeStatusCodes.includes(log.DownstreamStatus)) {
+        return false;
+      }
+
+      // Filter bots
+      if (settings.excludeBots && isBot(log.RequestUserAgent || '')) {
+        return false;
+      }
+
+      // Filter paths
+      for (const path of settings.excludePaths) {
+        if (log.RequestPath && log.RequestPath.includes(path)) {
+          return false;
+        }
+      }
+
+      // Apply custom conditions with mode support
+      // First check if any INCLUDE filters are active
+      const includeFilters = settings.customConditions.filter((c) => c.enabled && c.mode === 'include');
+      const excludeFilters = settings.customConditions.filter((c) => c.enabled && (!c.mode || c.mode === 'exclude'));
+
+      // If there are active INCLUDE filters, log must match at least one of them
+      if (includeFilters.length > 0) {
+        const matchesAnyInclude = includeFilters.some((condition) => matchesCondition(log, condition));
+        if (!matchesAnyInclude) {
+          return false; // Log doesn't match any include filter, so exclude it
+        }
+      }
+
+      // Then check EXCLUDE filters - if any match, exclude the log
+      for (const condition of excludeFilters) {
+        if (matchesCondition(log, condition)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
 }
 
 /**
@@ -236,6 +269,10 @@ export function getActiveFilterSummary(settings: FilterSettings): string[] {
 
   if (settings.excludePaths.length > 0) {
     summary.push(`${settings.excludePaths.length} paths excluded`);
+  }
+
+  if (settings.hideInternalTraffic) {
+    summary.push('Internal traffic excluded');
   }
 
   const enabledCustom = settings.customConditions.filter(c => c.enabled).length;

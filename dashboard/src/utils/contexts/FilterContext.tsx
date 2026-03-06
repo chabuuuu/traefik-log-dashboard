@@ -1,8 +1,9 @@
 // dashboard/lib/contexts/FilterContext.tsx
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FilterSettings, FilterCondition, defaultFilterSettings } from '../types/filter';
+import { useConfig } from './ConfigContext';
 
 function isDuplicateCondition(existing: FilterCondition, candidate: FilterCondition): boolean {
   return (
@@ -38,7 +39,10 @@ const FilterContext = createContext<FilterContextType | undefined>(undefined);
 const STORAGE_KEY = 'traefik-filter-settings';
 
 export function FilterProvider({ children }: { children: React.ReactNode }) {
+  const { config, loading: configLoading } = useConfig();
   const [settings, setSettings] = useState<FilterSettings>(defaultFilterSettings);
+  const [hydrated, setHydrated] = useState(false);
+  const hideInternalTrafficInitializedRef = useRef(false);
 
   // Load settings from localStorage on mount
   // BEST PRACTICE FIX: Wrap localStorage operations in try-catch for private browsing mode
@@ -49,6 +53,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsed = JSON.parse(stored);
           setSettings({ ...defaultFilterSettings, ...parsed });
+          hideInternalTrafficInitializedRef.current = typeof parsed.hideInternalTraffic === 'boolean';
         } catch (e) {
           console.error('Failed to parse filter settings:', e);
           // Clear corrupted data
@@ -63,12 +68,25 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
       // localStorage not available (private browsing, quota exceeded, etc.)
       console.warn('localStorage not available, using default filter settings:', error);
       // Continue with default settings
+    } finally {
+      setHydrated(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!hydrated || configLoading || hideInternalTrafficInitializedRef.current) return;
+
+    setSettings((prev) => ({
+      ...prev,
+      hideInternalTraffic: config.hideInternalTrafficDefault,
+    }));
+    hideInternalTrafficInitializedRef.current = true;
+  }, [config.hideInternalTrafficDefault, configLoading, hydrated]);
 
   // Save settings to localStorage whenever they change
   // BEST PRACTICE FIX: Wrap localStorage operations in try-catch
   useEffect(() => {
+    if (!hydrated || !hideInternalTrafficInitializedRef.current) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     } catch (error) {
@@ -126,7 +144,11 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetSettings = useCallback(() => {
-    setSettings(defaultFilterSettings);
+    setSettings({
+      ...defaultFilterSettings,
+      hideInternalTraffic: config.hideInternalTrafficDefault,
+    });
+    hideInternalTrafficInitializedRef.current = true;
     // BEST PRACTICE FIX: Wrap localStorage operations in try-catch
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -134,7 +156,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
       console.warn('Failed to remove filter settings from localStorage:', error);
       // Continue - settings are reset in state anyway
     }
-  }, []);
+  }, [config.hideInternalTrafficDefault]);
 
   const addCustomCondition = useCallback((condition: FilterCondition) => {
     setSettings((prev) => {

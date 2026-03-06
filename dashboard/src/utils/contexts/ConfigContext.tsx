@@ -9,6 +9,9 @@ export interface DashboardConfig {
   trafficTopItemsLimit: number;
   parserTrendWindowMinutes: number;
   agentsEnvOnly: boolean;
+  hideInternalTrafficDefault: boolean;
+  internalNoisePathPrefixes: string[];
+  internalNoiseServicePatterns: string[];
   defaultAgentUrl?: string;
   defaultAgentToken?: string;
   chartPalette: string[];
@@ -25,6 +28,14 @@ const defaultConfig: DashboardConfig = {
   trafficTopItemsLimit: 10,
   parserTrendWindowMinutes: 30,
   agentsEnvOnly: false,
+  hideInternalTrafficDefault: true,
+  internalNoisePathPrefixes: [
+    '/api/system/resources',
+    '/api/logs/status',
+    '/api/location',
+    '/api/dashboard/agents/check-status',
+  ],
+  internalNoiseServicePatterns: ['dashboard', 'agent', 'traefik-log-dashboard', 'log-dashboard'],
   chartPalette: ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'],
   density: 'comfortable',
 };

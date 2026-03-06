@@ -48,6 +48,15 @@ function buildRuntimeConfig(): Record<string, unknown> {
     return isNaN(n) ? fallback : n;
   };
 
+  const toList = (val: string, fallback: string[]): string[] => {
+    if (!val.trim()) return fallback;
+    const items = val
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return items.length > 0 ? items : fallback;
+  };
+
   const basePath = pick('BASE_PATH', 'VITE_BASE_PATH');
   const baseDomain = pick('BASE_DOMAIN', 'VITE_BASE_DOMAIN');
   const showDemoRaw = pick('SHOW_DEMO_PAGE', 'DASHBOARD_SHOW_DEMO_PAGE');
@@ -60,6 +69,22 @@ function buildRuntimeConfig(): Record<string, unknown> {
   const agentUrl = pick('AGENT_API_URL', 'AGENT_URL');
   const agentToken = pick('AGENT_API_TOKEN', 'AGENT_TOKEN');
   const frontendAgentUrl = pick('DASHBOARD_DEFAULT_AGENT_URL');
+  const hideInternalTrafficDefaultRaw = pick('DASHBOARD_HIDE_INTERNAL_TRAFFIC_DEFAULT');
+  const internalNoisePathPrefixesRaw = pick('DASHBOARD_INTERNAL_NOISE_PATH_PREFIXES');
+  const internalNoiseServicePatternsRaw = pick('DASHBOARD_INTERNAL_NOISE_SERVICE_PATTERNS');
+
+  const defaultInternalNoisePathPrefixes = [
+    '/api/system/resources',
+    '/api/logs/status',
+    '/api/location',
+    '/api/dashboard/agents/check-status',
+  ];
+  const defaultInternalNoiseServicePatterns = [
+    'dashboard',
+    'agent',
+    'traefik-log-dashboard',
+    'log-dashboard',
+  ];
 
   return {
     basePath,
@@ -70,6 +95,9 @@ function buildRuntimeConfig(): Record<string, unknown> {
     trafficTopItemsLimit: Math.max(3, Math.min(200, toInt(trafficTopItemsRaw, 10))),
     parserTrendWindowMinutes: Math.max(15, Math.min(30, toInt(parserTrendWindowRaw, 30))),
     agentsEnvOnly: toBool(agentsEnvOnlyRaw, false),
+    hideInternalTrafficDefault: toBool(hideInternalTrafficDefaultRaw, true),
+    internalNoisePathPrefixes: toList(internalNoisePathPrefixesRaw, defaultInternalNoisePathPrefixes),
+    internalNoiseServicePatterns: toList(internalNoiseServicePatternsRaw, defaultInternalNoiseServicePatterns),
     chartPalette: [
       'var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)',
       'var(--chart-4)', 'var(--chart-5)',

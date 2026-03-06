@@ -21,6 +21,9 @@ describe('getRuntimeConfig', () => {
       trafficTopItemsLimit: 25,
       parserTrendWindowMinutes: 20,
       agentsEnvOnly: true,
+      hideInternalTrafficDefault: true,
+      internalNoisePathPrefixes: ['/api/system/resources', '/api/logs/status'],
+      internalNoiseServicePatterns: ['dashboard', 'agent'],
       density: 'compact',
       showDemoPage: false,
     };
@@ -35,6 +38,9 @@ describe('getRuntimeConfig', () => {
     expect(cfg.trafficTopItemsLimit).toBe(25);
     expect(cfg.parserTrendWindowMinutes).toBe(20);
     expect(cfg.agentsEnvOnly).toBe(true);
+    expect(cfg.hideInternalTrafficDefault).toBe(true);
+    expect(cfg.internalNoisePathPrefixes).toEqual(['/api/system/resources', '/api/logs/status']);
+    expect(cfg.internalNoiseServicePatterns).toEqual(['dashboard', 'agent']);
     expect(cfg.density).toBe('compact');
     expect(cfg.showDemoPage).toBe(false);
   });

@@ -14,6 +14,8 @@ interface DashboardShellProps {
   logsCount?: number;
   showControls?: boolean;
   agentName?: string | null;
+  hideInternalTraffic?: boolean;
+  onToggleHideInternalTraffic?: () => void;
   dedupeDebug?: {
     received: number;
     kept: number;
@@ -32,6 +34,8 @@ export function DashboardShell({
   logsCount,
   showControls = false,
   agentName,
+  hideInternalTraffic,
+  onToggleHideInternalTraffic,
   dedupeDebug,
 }: DashboardShellProps) {
   return (
@@ -47,6 +51,8 @@ export function DashboardShell({
           logsCount={logsCount}
           showControls={showControls}
           agentName={agentName}
+          hideInternalTraffic={hideInternalTraffic}
+          onToggleHideInternalTraffic={onToggleHideInternalTraffic}
           dedupeDebug={dedupeDebug}
         />
         <div className="flex-1 overflow-auto p-4 md:p-6">

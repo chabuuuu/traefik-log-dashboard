@@ -1,6 +1,6 @@
 'use client';
 
-import { Moon, Sun, Wifi, WifiOff, Pause, Play, RefreshCw } from 'lucide-react';
+import { Moon, Sun, Wifi, WifiOff, Pause, Play, RefreshCw, FilterX } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { SidebarTrigger } from '@/components/ui/ui-sidebar';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,8 @@ interface DashboardHeaderProps {
   logsCount?: number;
   showControls?: boolean;
   agentName?: string | null;
+  hideInternalTraffic?: boolean;
+  onToggleHideInternalTraffic?: () => void;
   dedupeDebug?: {
     received: number;
     kept: number;
@@ -40,6 +42,8 @@ export function DashboardHeader({
   logsCount,
   showControls = false,
   agentName,
+  hideInternalTraffic = false,
+  onToggleHideInternalTraffic,
   dedupeDebug,
 }: DashboardHeaderProps) {
   const { theme, setTheme } = useTheme();
@@ -116,6 +120,21 @@ export function DashboardHeader({
                 ) : (
                   <Pause className="h-4 w-4" />
                 )}
+              </Button>
+            )}
+
+            {onToggleHideInternalTraffic && (
+              <Button
+                variant={hideInternalTraffic ? 'default' : 'outline'}
+                size="sm"
+                onClick={onToggleHideInternalTraffic}
+                className="h-8 gap-1.5"
+                title={hideInternalTraffic ? 'Showing only non-internal traffic' : 'Hide dashboard and agent internal traffic'}
+              >
+                <FilterX className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">
+                  {hideInternalTraffic ? 'Internal Hidden' : 'Hide Internal'}
+                </span>
               </Button>
             )}
 
