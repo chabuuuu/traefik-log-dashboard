@@ -1,5 +1,7 @@
 import { Request, Response, Router } from 'express';
 import net from 'net';
+import https from 'https';
+import http from 'http';
 
 interface LocationLookupRequestBody {
   ips?: unknown;
@@ -185,49 +187,83 @@ export function isPrivateIPAddress(ipAddress: string): boolean {
   return false;
 }
 
+function lookupWithNodeHttp(url: string, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    const req = client.get(url, { headers: { Accept: 'application/json' }, timeout: timeoutMs }, (res) => {
+      if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+  });
+}
+
+function parseProviderPayload(payload: IPWhoIsResponse, ipAddress: string): GeoLocationLookup {
+  if (payload.success === false) {
+    return createUnknownLocation(ipAddress);
+  }
+
+  const countryCode = getTrimmedString(payload.country_code);
+  const countryName = getTrimmedString(payload.country);
+  const country = countryCode?.toUpperCase() || countryName || UNKNOWN_COUNTRY;
+  const city = getTrimmedString(payload.city);
+
+  return {
+    ipAddress,
+    country,
+    city,
+    latitude: isFiniteNumber(payload.latitude) ? payload.latitude : undefined,
+    longitude: isFiniteNumber(payload.longitude) ? payload.longitude : undefined,
+  };
+}
+
 async function lookupLocationByProvider(ipAddress: string): Promise<GeoLocationLookup> {
   if (!locationLookupConfig.enabled || !locationLookupConfig.providerBaseUrl) {
     return createUnknownLocation(ipAddress);
   }
 
+  const lookupUrl = `${locationLookupConfig.providerBaseUrl}/${encodeURIComponent(ipAddress)}`;
+
+  // Try fetch() first
   const controller = new AbortController();
   const timeoutID = setTimeout(() => controller.abort(), locationLookupConfig.timeoutMs);
 
   try {
-    const lookupUrl = `${locationLookupConfig.providerBaseUrl}/${encodeURIComponent(ipAddress)}`;
     const response = await fetch(lookupUrl, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
 
     if (!response.ok) {
+      console.warn(`[location] fetch returned HTTP ${response.status} for ${ipAddress}`);
       return createUnknownLocation(ipAddress);
     }
 
     const payload = (await response.json()) as IPWhoIsResponse;
-    if (payload.success === false) {
-      return createUnknownLocation(ipAddress);
-    }
-
-    const countryCode = getTrimmedString(payload.country_code);
-    const countryName = getTrimmedString(payload.country);
-    const country = countryCode?.toUpperCase() || countryName || UNKNOWN_COUNTRY;
-    const city = getTrimmedString(payload.city);
-
-    return {
-      ipAddress,
-      country,
-      city,
-      latitude: isFiniteNumber(payload.latitude) ? payload.latitude : undefined,
-      longitude: isFiniteNumber(payload.longitude) ? payload.longitude : undefined,
-    };
-  } catch {
-    return createUnknownLocation(ipAddress);
+    return parseProviderPayload(payload, ipAddress);
+  } catch (fetchErr) {
+    console.warn(`[location] fetch failed for ${ipAddress}: ${fetchErr instanceof Error ? fetchErr.message : fetchErr}, trying node http fallback`);
   } finally {
     clearTimeout(timeoutID);
+  }
+
+  // Fallback to Node.js built-in http/https module
+  try {
+    const body = await lookupWithNodeHttp(lookupUrl, locationLookupConfig.timeoutMs);
+    const payload = JSON.parse(body) as IPWhoIsResponse;
+    return parseProviderPayload(payload, ipAddress);
+  } catch (httpErr) {
+    console.error(`[location] http fallback also failed for ${ipAddress}:`, httpErr instanceof Error ? httpErr.message : httpErr);
+    return createUnknownLocation(ipAddress);
   }
 }
 
@@ -337,5 +373,12 @@ router.post('/lookup', async (req: Request, res: Response) => {
     count: locations.length,
   });
 });
+
+// Startup connectivity check
+if (locationLookupConfig.enabled) {
+  lookupLocationByProvider('8.8.8.8')
+    .then((r) => console.log(`[location] provider check: ${r.country !== UNKNOWN_COUNTRY ? 'OK' : 'FAILED'} (country=${r.country})`))
+    .catch((e) => console.error('[location] provider check failed:', e instanceof Error ? e.message : e));
+}
 
 export default router;

@@ -38,6 +38,18 @@ export function useLogFetcher() {
   const positionRef = useRef<number>(-1);
   const isFirstFetch = useRef(true);
   const previousAgentRef = useRef<string | null>(null);
+
+  // Restore position from sessionStorage on mount (survives page refresh)
+  const getStorageKey = (id: string) => `tld:logPosition:${id}`;
+  if (positionRef.current === -1 && selectedAgent?.id) {
+    const saved = sessionStorage.getItem(getStorageKey(selectedAgent.id));
+    if (saved !== null) {
+      const parsed = Number(saved);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        positionRef.current = parsed;
+      }
+    }
+  }
   const seenLogsRef = useRef<Set<string>>(new Set());
   const dedupeReceivedRef = useRef(0);
   const dedupeDroppedRef = useRef(0);
@@ -70,7 +82,15 @@ export function useLogFetcher() {
       setLastUpdate(null);
       setError(null);
       setLoading(true);
-      positionRef.current = -1;
+      // Restore position from sessionStorage for the new agent, or reset to tail mode
+      const newAgentId = selectedAgentID ?? null;
+      if (newAgentId) {
+        const saved = sessionStorage.getItem(getStorageKey(newAgentId));
+        const parsed = saved !== null ? Number(saved) : NaN;
+        positionRef.current = Number.isFinite(parsed) && parsed >= 0 ? parsed : -1;
+      } else {
+        positionRef.current = -1;
+      }
       isFirstFetch.current = true;
       seenLogsRef.current.clear();
       dedupeReceivedRef.current = 0;
@@ -216,6 +236,9 @@ export function useLogFetcher() {
 
         if (typeof nextPosition === 'number') {
           positionRef.current = nextPosition;
+          try {
+            sessionStorage.setItem(getStorageKey(selectedAgentID), String(nextPosition));
+          } catch { /* sessionStorage may be unavailable */ }
         }
 
         pollDelayRef.current = config.refreshIntervalMs;
