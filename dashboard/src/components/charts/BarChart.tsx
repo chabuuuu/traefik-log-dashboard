@@ -4,13 +4,12 @@ import React from 'react';
 import {
   Bar,
   BarChart as RechartsBarChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip,
   CartesianGrid,
-  Legend,
 } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 
 interface Dataset {
   label: string;
@@ -26,8 +25,15 @@ interface BarChartProps {
   height?: number;
 }
 
+const defaultColors = [
+  'var(--primary)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
+
 function BarChart({ labels, datasets, height = 300 }: BarChartProps) {
-  // Transform data to Recharts format
   const chartData = labels.map((label, index) => {
     const point: Record<string, string | number> = { name: label };
     datasets.forEach(dataset => {
@@ -36,71 +42,50 @@ function BarChart({ labels, datasets, height = 300 }: BarChartProps) {
     return point;
   });
 
-  // Default colors using CSS variables
-  const defaultColors = [
-    'var(--primary)',
-    'var(--chart-2)',
-    'var(--chart-3)',
-    'var(--chart-4)',
-    'var(--chart-5)',
-  ];
+  const chartConfig = datasets.reduce<ChartConfig>((acc, dataset, idx) => {
+    const fill = Array.isArray(dataset.backgroundColor)
+      ? dataset.backgroundColor[0]
+      : dataset.backgroundColor || defaultColors[idx % defaultColors.length];
+    acc[dataset.label] = {
+      label: dataset.label,
+      color: fill,
+    };
+    return acc;
+  }, {});
 
   return (
-    <div style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--border)"
-            vertical={false}
+    <ChartContainer config={chartConfig} className="w-full" style={{ height }}>
+      <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <CartesianGrid
+          strokeDasharray="3 3"
+          vertical={false}
+        />
+        <XAxis
+          dataKey="name"
+          axisLine={false}
+          tickLine={false}
+          tickMargin={8}
+        />
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+          tickMargin={8}
+          allowDecimals={false}
+        />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        {datasets.length > 1 && (
+          <ChartLegend content={<ChartLegendContent />} />
+        )}
+        {datasets.map((dataset, idx) => (
+          <Bar
+            key={dataset.label}
+            dataKey={dataset.label}
+            fill={`var(--color-${dataset.label})`}
+            radius={[4, 4, 0, 0]}
           />
-          <XAxis
-            dataKey="name"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-            tickMargin={8}
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-            tickMargin={8}
-            allowDecimals={false}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--popover)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            }}
-            labelStyle={{ color: 'var(--foreground)', fontWeight: 500 }}
-            cursor={{ fill: 'var(--muted)' }}
-          />
-          {datasets.length > 1 && (
-            <Legend
-              wrapperStyle={{ paddingTop: 20 }}
-              iconType="circle"
-            />
-          )}
-          {datasets.map((dataset, idx) => {
-            const fill = Array.isArray(dataset.backgroundColor)
-              ? dataset.backgroundColor[0]
-              : dataset.backgroundColor || defaultColors[idx % defaultColors.length];
-
-            return (
-              <Bar
-                key={dataset.label}
-                dataKey={dataset.label}
-                fill={fill}
-                radius={[4, 4, 0, 0]}
-              />
-            );
-          })}
-        </RechartsBarChart>
-      </ResponsiveContainer>
-    </div>
+        ))}
+      </RechartsBarChart>
+    </ChartContainer>
   );
 }
 

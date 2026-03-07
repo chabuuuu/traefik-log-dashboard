@@ -1,42 +1,19 @@
 'use client';
 
-import { memo, useState, useRef, useCallback, useMemo } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { FileText, AlertCircle, Clock, ChevronDown } from 'lucide-react';
+import { memo, useState } from 'react';
+import { AlertCircle, Clock } from 'lucide-react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DataTable } from '@/components/dashboard/cards/DataTable';
+import LogDetailSheet from '@/components/dashboard/cards/LogDetailSheet';
 import { TraefikLog, ErrorLog } from '@/utils/types';
 import { formatNumber } from '@/utils/utils';
-import { buildLogKey } from '@/utils/utils/log-batching';
 
 interface LogsSectionProps {
   logs: TraefikLog[];
   errors: ErrorLog[];
 }
-
-type ColumnKey = 'time' | 'clientIP' | 'method' | 'path' | 'status' | 'duration' | 'service' | 'router' | 'country' | 'city' | 'host' | 'size';
-
-const allColumns: { key: ColumnKey; label: string; default: boolean }[] = [
-  { key: 'time', label: 'Time', default: true },
-  { key: 'clientIP', label: 'Client IP', default: true },
-  { key: 'method', label: 'Method', default: true },
-  { key: 'path', label: 'Path', default: true },
-  { key: 'status', label: 'Status', default: true },
-  { key: 'duration', label: 'Duration', default: true },
-  { key: 'service', label: 'Service', default: true },
-  { key: 'router', label: 'Router', default: false },
-  { key: 'country', label: 'Country', default: false },
-  { key: 'city', label: 'City', default: false },
-  { key: 'host', label: 'Host', default: false },
-  { key: 'size', label: 'Size', default: false },
-];
 
 function getMethodColor(method: string): string {
   switch (method?.toUpperCase()) {
@@ -49,15 +26,16 @@ function getMethodColor(method: string): string {
   }
 }
 
-function getStatusColor(status: number): string {
-  if (status >= 200 && status < 300) return 'bg-success-muted text-success';
-  if (status >= 300 && status < 400) return 'bg-info-muted text-info';
-  if (status >= 400 && status < 500) return 'bg-warning-muted text-warning';
-  if (status >= 500) return 'bg-destructive-muted text-destructive';
-  return 'bg-muted text-muted-foreground';
+function getStatusVariant(status: number): 'success' | 'info' | 'warning' | 'destructive' | 'secondary' {
+  if (status >= 200 && status < 300) return 'success';
+  if (status >= 300 && status < 400) return 'info';
+  if (status >= 400 && status < 500) return 'warning';
+  if (status >= 500) return 'destructive';
+  return 'secondary';
 }
 
 function formatDuration(ns: number): string {
+  if (!ns || ns === 0) return '-';
   if (ns < 1000) return `${ns}ns`;
   if (ns < 1000000) return `${(ns / 1000).toFixed(1)}µs`;
   if (ns < 1000000000) return `${(ns / 1000000).toFixed(1)}ms`;
@@ -72,43 +50,142 @@ function formatTime(dateStr: string): string {
   }
 }
 
-function LogsSection({ logs, errors }: LogsSectionProps) {
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(allColumns.filter(c => c.default).map(c => c.key))
-  );
-
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
-    count: logs.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 48,
-    overscan: 12,
-    getItemKey: (index) => {
-      const log = logs[index];
-      return log ? buildLogKey(log) : `log-${index}`;
+const columns: ColumnDef<TraefikLog, unknown>[] = [
+  {
+    accessorFn: (row) => row.StartLocal || row.StartUTC,
+    id: 'time',
+    header: 'Time',
+    size: 90,
+    cell: ({ getValue }) => (
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {formatTime(getValue() as string)}
+      </span>
+    ),
+  },
+  {
+    accessorFn: (row) => row.ClientHost || row.ClientAddr,
+    id: 'clientIP',
+    header: 'Client IP',
+    size: 120,
+    cell: ({ getValue }) => (
+      <span className="font-mono text-xs">{getValue() as string}</span>
+    ),
+  },
+  {
+    accessorKey: 'RequestMethod',
+    header: 'Method',
+    size: 75,
+    cell: ({ getValue }) => (
+      <Badge className={`text-[10px] px-1.5 py-0 ${getMethodColor(getValue() as string)}`}>
+        {getValue() as string}
+      </Badge>
+    ),
+  },
+  {
+    accessorKey: 'RequestPath',
+    header: 'Path',
+    size: 250,
+    cell: ({ getValue }) => (
+      <span className="font-mono text-xs truncate block max-w-[240px]" title={getValue() as string}>
+        {getValue() as string}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'DownstreamStatus',
+    header: 'Status',
+    size: 65,
+    cell: ({ getValue }) => {
+      const status = getValue() as number;
+      return (
+        <Badge variant={getStatusVariant(status)} className="text-[10px] px-1.5 py-0">
+          {status}
+        </Badge>
+      );
     },
-  });
+  },
+  {
+    accessorKey: 'Duration',
+    header: 'Duration',
+    size: 85,
+    cell: ({ getValue }) => (
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {formatDuration(getValue() as number)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'ServiceName',
+    header: 'Service',
+    size: 120,
+    cell: ({ getValue }) => (
+      <span className="text-xs truncate block max-w-[110px]" title={(getValue() as string) || ''}>
+        {(getValue() as string) || '-'}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'RouterName',
+    header: 'Router',
+    size: 110,
+    enableHiding: true,
+    cell: ({ getValue }) => (
+      <span className="text-xs truncate block max-w-[100px]">{(getValue() as string) || '-'}</span>
+    ),
+  },
+  {
+    accessorKey: 'geoCountry',
+    header: 'Country',
+    size: 100,
+    enableHiding: true,
+    cell: ({ getValue }) => (
+      <span className="text-xs">{(getValue() as string) || '-'}</span>
+    ),
+  },
+  {
+    accessorKey: 'geoCity',
+    header: 'City',
+    size: 100,
+    enableHiding: true,
+    cell: ({ getValue }) => (
+      <span className="text-xs">{(getValue() as string) || '-'}</span>
+    ),
+  },
+  {
+    accessorKey: 'RequestHost',
+    header: 'Host',
+    size: 110,
+    enableHiding: true,
+    cell: ({ getValue }) => (
+      <span className="text-xs truncate block max-w-[100px]">{(getValue() as string) || '-'}</span>
+    ),
+  },
+  {
+    accessorKey: 'DownstreamContentSize',
+    header: 'Size',
+    size: 80,
+    enableHiding: true,
+    cell: ({ getValue }) => {
+      const size = getValue() as number;
+      return (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {size ? `${(size / 1024).toFixed(1)}KB` : '-'}
+        </span>
+      );
+    },
+  },
+];
 
-  const virtualItems = virtualizer.getVirtualItems();
-  const totalSize = virtualizer.getTotalSize();
+const defaultHiddenColumns = {
+  RouterName: false,
+  geoCountry: false,
+  geoCity: false,
+  RequestHost: false,
+  DownstreamContentSize: false,
+};
 
-  const toggleColumn = useCallback((key: ColumnKey) => {
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }, []);
-
-  const columns = useMemo(() =>
-    allColumns.filter(c => visibleColumns.has(c.key)),
-    [visibleColumns]
-  );
+function LogsSection({ logs, errors }: LogsSectionProps) {
+  const [selectedLog, setSelectedLog] = useState<TraefikLog | null>(null);
 
   return (
     <div className="space-y-6">
@@ -120,28 +197,31 @@ function LogsSection({ logs, errors }: LogsSectionProps) {
         </CardHeader>
         <CardContent>
           {errors.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
               <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-success-muted flex items-center justify-center mx-auto mb-3">
-                  <AlertCircle className="h-6 w-6 text-success" />
+                <div className="w-10 h-10 rounded-full bg-success-muted flex items-center justify-center mx-auto mb-2">
+                  <AlertCircle className="h-5 w-5 text-success" />
                 </div>
                 <p>No errors recorded</p>
               </div>
             </div>
           ) : (
-            <div className="space-y-3 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-48 overflow-y-auto">
               {errors.slice(0, 10).map((error, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-destructive-muted border border-destructive/30">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <Badge variant={error.level === 'error' ? 'destructive' : 'secondary'} className="text-xs">
-                      {error.level}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {formatTime(error.timestamp)}
-                    </span>
+                <div key={idx} className="flex items-start gap-3 p-2.5 rounded-lg bg-destructive-muted/50 border border-destructive/20">
+                  <div className="w-1.5 h-1.5 rounded-full bg-destructive mt-1.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Badge variant={error.level === 'error' ? 'destructive' : 'warning'} className="text-[10px] px-1.5 py-0">
+                        {error.level}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-2.5 w-2.5" />
+                        {formatTime(error.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-xs font-mono text-foreground truncate">{error.message}</p>
                   </div>
-                  <p className="text-sm font-mono text-foreground break-all">{error.message}</p>
                 </div>
               ))}
             </div>
@@ -149,171 +229,43 @@ function LogsSection({ logs, errors }: LogsSectionProps) {
         </CardContent>
       </Card>
 
-      {/* Logs Table */}
+      {/* Logs DataTable */}
       <Card className="hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="flex items-center gap-3">
             <CardTitle className="text-sm font-semibold uppercase tracking-wide">Recent Logs</CardTitle>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs tabular-nums">
               {formatNumber(logs.length)} entries
             </Badge>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-              <span className="text-xs text-muted-foreground">Live</span>
+              <div className="relative">
+                <div className="w-2 h-2 bg-success rounded-full" />
+                <div className="absolute inset-0 w-2 h-2 bg-success rounded-full animate-ping opacity-75" />
+              </div>
+              <span className="text-xs font-medium text-success">Live</span>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  Columns
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {allColumns.map(col => (
-                  <DropdownMenuCheckboxItem
-                    key={col.key}
-                    checked={visibleColumns.has(col.key)}
-                    onCheckedChange={() => toggleColumn(col.key)}
-                  >
-                    {col.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <FileText className="h-5 w-5 text-primary" />
           </div>
         </CardHeader>
         <CardContent>
-          {logs.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              <div className="text-center">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No logs available</p>
-              </div>
-            </div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              {/* Header */}
-              <div className="bg-muted/50 border-b sticky top-0 z-10">
-                <div className="flex text-xs font-medium text-muted-foreground">
-                  {columns.map(col => (
-                    <div
-                      key={col.key}
-                      className={`px-3 py-2 ${
-                        col.key === 'path' ? 'flex-1 min-w-[200px]' :
-                        col.key === 'time' ? 'w-24' :
-                        col.key === 'clientIP' ? 'w-32' :
-                        col.key === 'method' ? 'w-20' :
-                        col.key === 'status' ? 'w-16' :
-                        col.key === 'duration' ? 'w-24' :
-                        col.key === 'service' ? 'w-32' :
-                        'w-28'
-                      }`}
-                    >
-                      {col.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Virtual List */}
-              <div
-                ref={parentRef}
-                className="h-[400px] overflow-auto"
-              >
-                <div
-                  style={{
-                    height: `${totalSize}px`,
-                    width: '100%',
-                    position: 'relative',
-                  }}
-                >
-                  {virtualItems.map(virtualRow => {
-                    const log = logs[virtualRow.index];
-                    return (
-                      <div
-                        key={virtualRow.key}
-                        className="absolute top-0 left-0 w-full flex items-center border-b hover:bg-muted/30 transition-colors"
-                        style={{
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        {visibleColumns.has('time') && (
-                          <div className="w-24 px-3 text-xs text-muted-foreground truncate">
-                            {formatTime(log.StartLocal || log.StartUTC)}
-                          </div>
-                        )}
-                        {visibleColumns.has('clientIP') && (
-                          <div className="w-32 px-3 font-mono text-xs truncate">
-                            {log.ClientHost || log.ClientAddr}
-                          </div>
-                        )}
-                        {visibleColumns.has('method') && (
-                          <div className="w-20 px-3">
-                            <Badge className={`text-xs ${getMethodColor(log.RequestMethod)}`}>
-                              {log.RequestMethod}
-                            </Badge>
-                          </div>
-                        )}
-                        {visibleColumns.has('path') && (
-                          <div className="flex-1 min-w-[200px] px-3 font-mono text-xs truncate" title={log.RequestPath}>
-                            {log.RequestPath}
-                          </div>
-                        )}
-                        {visibleColumns.has('status') && (
-                          <div className="w-16 px-3">
-                            <Badge className={`text-xs ${getStatusColor(log.DownstreamStatus)}`}>
-                              {log.DownstreamStatus}
-                            </Badge>
-                          </div>
-                        )}
-                        {visibleColumns.has('duration') && (
-                          <div className="w-24 px-3 text-xs text-muted-foreground">
-                            {formatDuration(log.Duration)}
-                          </div>
-                        )}
-                        {visibleColumns.has('service') && (
-                          <div className="w-32 px-3 text-xs truncate" title={log.ServiceName}>
-                            {log.ServiceName || '-'}
-                          </div>
-                        )}
-                        {visibleColumns.has('router') && (
-                          <div className="w-28 px-3 text-xs truncate" title={log.RouterName}>
-                            {log.RouterName || '-'}
-                          </div>
-                        )}
-                        {visibleColumns.has('country') && (
-                          <div className="w-28 px-3 text-xs truncate">
-                            {log.geoCountry || '-'}
-                          </div>
-                        )}
-                        {visibleColumns.has('city') && (
-                          <div className="w-28 px-3 text-xs truncate">
-                            {log.geoCity || '-'}
-                          </div>
-                        )}
-                        {visibleColumns.has('host') && (
-                          <div className="w-28 px-3 text-xs truncate" title={log.RequestHost}>
-                            {log.RequestHost || '-'}
-                          </div>
-                        )}
-                        {visibleColumns.has('size') && (
-                          <div className="w-28 px-3 text-xs text-muted-foreground">
-                            {log.DownstreamContentSize ? `${(log.DownstreamContentSize / 1024).toFixed(1)}KB` : '-'}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            data={logs}
+            searchKey="RequestPath"
+            searchPlaceholder="Search by path, IP, service..."
+            onRowClick={setSelectedLog}
+            defaultColumnVisibility={defaultHiddenColumns}
+            virtualizeRows
+            rowHeight={40}
+            maxHeight="450px"
+          />
         </CardContent>
       </Card>
+
+      <LogDetailSheet
+        log={selectedLog}
+        open={!!selectedLog}
+        onOpenChange={(open) => !open && setSelectedLog(null)}
+      />
     </div>
   );
 }

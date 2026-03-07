@@ -1,11 +1,15 @@
 'use client';
 
 import { memo } from 'react';
-import { Cpu, HardDrive, MemoryStick, Activity, Server } from 'lucide-react';
+import { Cpu, HardDrive, MemoryStick, Server } from 'lucide-react';
+import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { ChartContainer } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { ParserMetrics, SystemMonitoringDisabled, SystemStats, SystemStatsResponse } from '@/utils/types';
 import SparklineChart from '@/components/charts/SparklineChart';
+import HealthBar from '@/components/dashboard/cards/HealthBar';
 import type { ParserRatioTrendPoint } from '@/hooks/useAgentStatus';
 
 interface SystemSectionProps {
@@ -25,18 +29,16 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-function getStatusColor(percentage: number): string {
-  if (percentage < 50) return 'text-success';
-  if (percentage < 75) return 'text-warning';
-  if (percentage < 90) return 'text-warning';
-  return 'text-destructive';
+function getColor(percentage: number): string {
+  if (percentage < 50) return 'var(--success)';
+  if (percentage < 75) return 'var(--warning)';
+  return 'var(--destructive)';
 }
 
-function getStatusBg(percentage: number): string {
-  if (percentage < 50) return 'bg-success-muted border-success/30';
-  if (percentage < 75) return 'bg-warning-muted border-warning/30';
-  if (percentage < 90) return 'bg-warning-muted border-warning/30';
-  return 'bg-destructive-muted border-destructive/30';
+function getTextColor(percentage: number): string {
+  if (percentage < 50) return 'text-success';
+  if (percentage < 75) return 'text-warning';
+  return 'text-destructive';
 }
 
 function getStatusLabel(percentage: number): string {
@@ -46,23 +48,77 @@ function getStatusLabel(percentage: number): string {
   return 'Critical';
 }
 
-function getParserHealth(metrics: ParserMetrics): { label: string; className: string } {
+function ResourceGauge({ label, percentage, icon: Icon, details }: {
+  label: string;
+  percentage: number;
+  icon: React.ComponentType<{ className?: string }>;
+  details: { label: string; value: string }[];
+}) {
+  const color = getColor(percentage);
+  const textColor = getTextColor(percentage);
+  const chartConfig = { value: { label, color } } satisfies ChartConfig;
+  const data = [{ name: label, value: percentage, fill: color }];
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 ${textColor}`} />
+            <span className="text-sm font-semibold uppercase tracking-wide">{label}</span>
+          </div>
+          <Badge variant={percentage < 50 ? 'success' : percentage < 75 ? 'warning' : 'destructive'} className="text-[10px] px-1.5 py-0">
+            {getStatusLabel(percentage)}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-4">
+          <ChartContainer config={chartConfig} className="h-24 w-24 shrink-0">
+            <RadialBarChart
+              cx="50%"
+              cy="50%"
+              innerRadius="65%"
+              outerRadius="100%"
+              startAngle={180}
+              endAngle={0}
+              data={data}
+              barSize={10}
+            >
+              <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+              <RadialBar
+                dataKey="value"
+                cornerRadius={5}
+                background={{ fill: 'var(--muted)' }}
+              />
+              <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle">
+                <tspan className="text-lg font-bold" style={{ fill: color }}>
+                  {percentage.toFixed(1)}%
+                </tspan>
+              </text>
+            </RadialBarChart>
+          </ChartContainer>
+          <div className="flex-1 space-y-1.5">
+            {details.map((detail) => (
+              <div key={detail.label} className="flex justify-between text-xs">
+                <span className="text-muted-foreground">{detail.label}</span>
+                <span className="font-medium tabular-nums">{detail.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function getParserHealth(metrics: ParserMetrics): { label: string; variant: 'success' | 'warning' | 'destructive' } {
   const parsedTotal = metrics.json + metrics.traefik_clf + metrics.generic_clf;
   const totalSeen = parsedTotal + metrics.unknown;
   const unknownRate = totalSeen > 0 ? metrics.unknown / totalSeen : 0;
   const errorRate = parsedTotal > 0 ? metrics.errors / parsedTotal : 0;
 
-  if (errorRate > 0.03 || unknownRate > 0.2) {
-    return { label: 'Critical', className: 'text-destructive' };
-  }
-  if (errorRate > 0.01 || unknownRate > 0.1) {
-    return { label: 'Warning', className: 'text-warning' };
-  }
-  return { label: 'Healthy', className: 'text-success' };
-}
-
-function asPercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
+  if (errorRate > 0.03 || unknownRate > 0.2) return { label: 'Critical', variant: 'destructive' };
+  if (errorRate > 0.01 || unknownRate > 0.1) return { label: 'Warning', variant: 'warning' };
+  return { label: 'Healthy', variant: 'success' };
 }
 
 function ParserMetricsPanel({
@@ -78,88 +134,76 @@ function ParserMetricsPanel({
   statusError?: string | null;
   statusLastUpdate?: Date | null;
 }) {
-  if (!parserMetrics && !statusLoading && !statusError) {
-    return null;
-  }
+  if (!parserMetrics && !statusLoading && !statusError) return null;
 
-  const metrics = parserMetrics || {
-    json: 0,
-    traefik_clf: 0,
-    generic_clf: 0,
-    unknown: 0,
-    errors: 0,
-  };
+  const metrics = parserMetrics || { json: 0, traefik_clf: 0, generic_clf: 0, unknown: 0, errors: 0 };
   const parsedTotal = metrics.json + metrics.traefik_clf + metrics.generic_clf;
   const totalSeen = parsedTotal + metrics.unknown;
   const unknownRate = totalSeen > 0 ? metrics.unknown / totalSeen : 0;
   const errorRate = parsedTotal > 0 ? metrics.errors / parsedTotal : 0;
   const health = getParserHealth(metrics);
-  const unknownTrend = (parserTrend ?? []).map((point) => point.unknownRatio * 100);
-  const errorTrend = (parserTrend ?? []).map((point) => point.errorRatio * 100);
+  const unknownTrend = (parserTrend ?? []).map((p) => p.unknownRatio * 100);
+  const errorTrend = (parserTrend ?? []).map((p) => p.errorRatio * 100);
 
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-semibold uppercase tracking-wide">Parser Health</CardTitle>
-        <Server className="h-5 w-5 text-primary" />
+        <Badge variant={health.variant} className="text-[10px] px-1.5 py-0">{health.label}</Badge>
       </CardHeader>
       <CardContent>
         {statusError ? (
           <p className="text-sm text-destructive">{statusError}</p>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <span className={`text-sm font-semibold ${health.className}`}>{health.label}</span>
-            </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="bg-muted/40 rounded-md p-3">
-                <p className="text-xs text-muted-foreground">JSON</p>
-                <p className="text-lg font-semibold">{metrics.json}</p>
-              </div>
-              <div className="bg-muted/40 rounded-md p-3">
-                <p className="text-xs text-muted-foreground">Traefik CLF</p>
-                <p className="text-lg font-semibold">{metrics.traefik_clf}</p>
-              </div>
-              <div className="bg-muted/40 rounded-md p-3">
-                <p className="text-xs text-muted-foreground">Generic CLF</p>
-                <p className="text-lg font-semibold">{metrics.generic_clf}</p>
-              </div>
-              <div className="bg-warning-muted rounded-md p-3 border border-warning/30">
-                <p className="text-xs text-muted-foreground">Unknown</p>
-                <p className="text-lg font-semibold">{metrics.unknown}</p>
-              </div>
-              <div className="bg-destructive-muted rounded-md p-3 border border-destructive/30">
-                <p className="text-xs text-muted-foreground">Errors</p>
-                <p className="text-lg font-semibold">{metrics.errors}</p>
-              </div>
+              {[
+                { label: 'JSON', value: metrics.json },
+                { label: 'Traefik CLF', value: metrics.traefik_clf },
+                { label: 'Generic CLF', value: metrics.generic_clf },
+                { label: 'Unknown', value: metrics.unknown, warn: true },
+                { label: 'Errors', value: metrics.errors, error: true },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-md p-3 ${
+                  item.error ? 'bg-destructive-muted border border-destructive/20' :
+                  item.warn ? 'bg-warning-muted border border-warning/20' :
+                  'bg-muted/40'
+                }`}>
+                  <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
+                  <p className="text-lg font-semibold tabular-nums">{item.value}</p>
+                </div>
+              ))}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Unknown ratio</span>
-                <span className="font-medium">{asPercent(unknownRate)}</span>
+                <span className="font-medium tabular-nums">{(unknownRate * 100).toFixed(1)}%</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Error ratio</span>
-                <span className="font-medium">{asPercent(errorRate)}</span>
+                <span className="font-medium tabular-nums">{(errorRate * 100).toFixed(1)}%</span>
               </div>
             </div>
             {(unknownTrend.length > 1 || errorTrend.length > 1) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-md border border-warning/30 bg-warning-muted p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted-foreground">Unknown ratio trend</span>
-                    <span className="text-xs font-semibold text-foreground">{unknownRate * 100 > 0 ? `${(unknownRate * 100).toFixed(2)}%` : '0.00%'}</span>
+                {unknownTrend.length > 1 && (
+                  <div className="rounded-md border border-warning/20 bg-warning-muted/50 p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-muted-foreground uppercase">Unknown ratio trend</span>
+                      <span className="text-xs font-semibold tabular-nums">{(unknownRate * 100).toFixed(2)}%</span>
+                    </div>
+                    <SparklineChart data={unknownTrend} color="var(--warning)" height={40} />
                   </div>
-                  <SparklineChart data={unknownTrend} color="var(--warning)" height={44} />
-                </div>
-                <div className="rounded-md border border-destructive/30 bg-destructive-muted p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted-foreground">Error ratio trend</span>
-                    <span className="text-xs font-semibold text-foreground">{errorRate * 100 > 0 ? `${(errorRate * 100).toFixed(2)}%` : '0.00%'}</span>
+                )}
+                {errorTrend.length > 1 && (
+                  <div className="rounded-md border border-destructive/20 bg-destructive-muted/50 p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-muted-foreground uppercase">Error ratio trend</span>
+                      <span className="text-xs font-semibold tabular-nums">{(errorRate * 100).toFixed(2)}%</span>
+                    </div>
+                    <SparklineChart data={errorTrend} color="var(--destructive)" height={40} />
                   </div>
-                  <SparklineChart data={errorTrend} color="var(--destructive)" height={44} />
-                </div>
+                )}
               </div>
             )}
             <div className="text-xs text-muted-foreground">
@@ -174,36 +218,23 @@ function ParserMetricsPanel({
 
 function SystemSection({ systemStats, parserMetrics, parserTrend, statusLoading, statusError, statusLastUpdate }: SystemSectionProps) {
   const isDisabled = (value: SystemStatsResponse): value is SystemMonitoringDisabled =>
-    typeof value === 'object' && value !== null && (value as any).status === 'disabled';
+    typeof value === 'object' && value !== null && (value as Record<string, unknown>).status === 'disabled';
 
   if (systemStats && isDisabled(systemStats)) {
-    const message = systemStats.message || 'System monitoring is disabled';
     return (
       <div className="space-y-6">
         <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide">System Resources</CardTitle>
-            <Server className="h-5 w-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="text-center space-y-2">
-                <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <Server className="h-6 w-6" />
-                </div>
-                <p className="text-sm font-medium">Monitoring disabled</p>
-                <p className="text-xs">{message}</p>
+          <CardContent className="flex items-center justify-center py-12 text-muted-foreground">
+            <div className="text-center space-y-2">
+              <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                <Server className="h-6 w-6" />
               </div>
+              <p className="text-sm font-medium">Monitoring disabled</p>
+              <p className="text-xs">{systemStats.message || 'System monitoring is disabled'}</p>
             </div>
           </CardContent>
         </Card>
-        <ParserMetricsPanel
-          parserMetrics={parserMetrics}
-          parserTrend={parserTrend}
-          statusLoading={statusLoading}
-          statusError={statusError}
-          statusLastUpdate={statusLastUpdate}
-        />
+        <ParserMetricsPanel parserMetrics={parserMetrics} parserTrend={parserTrend} statusLoading={statusLoading} statusError={statusError} statusLastUpdate={statusLastUpdate} />
       </div>
     );
   }
@@ -212,27 +243,15 @@ function SystemSection({ systemStats, parserMetrics, parserTrend, statusLoading,
     return (
       <div className="space-y-6">
         <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide">System Resources</CardTitle>
-            <Server className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="text-center">
-                <Server className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-sm">System statistics not available</p>
-                <p className="text-xs mt-1">Connect to an agent to view system resources</p>
-              </div>
+          <CardContent className="flex items-center justify-center py-12 text-muted-foreground">
+            <div className="text-center">
+              <Server className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm">System statistics not available</p>
+              <p className="text-xs mt-1">Connect to an agent to view system resources</p>
             </div>
           </CardContent>
         </Card>
-        <ParserMetricsPanel
-          parserMetrics={parserMetrics}
-          parserTrend={parserTrend}
-          statusLoading={statusLoading}
-          statusError={statusError}
-          statusLastUpdate={statusLastUpdate}
-        />
+        <ParserMetricsPanel parserMetrics={parserMetrics} parserTrend={parserTrend} statusLoading={statusLoading} statusError={statusError} statusLastUpdate={statusLastUpdate} />
       </div>
     );
   }
@@ -242,159 +261,59 @@ function SystemSection({ systemStats, parserMetrics, parserTrend, statusLoading,
   const memoryPercent = stats.memory.used_percent;
   const diskPercent = stats.disk.used_percent;
 
+  // Overall health
+  const worstMetric = Math.max(cpuPercent, memoryPercent, diskPercent);
+  const healthyCount = [cpuPercent, memoryPercent, diskPercent].filter(p => p < 75).length;
+  const warningCount = [cpuPercent, memoryPercent, diskPercent].filter(p => p >= 75 && p < 90).length;
+  const criticalCount = [cpuPercent, memoryPercent, diskPercent].filter(p => p >= 90).length;
+
   return (
     <div className="space-y-6">
-      {/* Resource Summary Cards */}
+      {/* Resource Gauges */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* CPU Card */}
-        <Card className={`hover:shadow-md transition-shadow border ${getStatusBg(cpuPercent)}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide">CPU</CardTitle>
-            <Cpu className={`h-5 w-5 ${getStatusColor(cpuPercent)}`} />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-end justify-between">
-                <span className={`text-4xl font-bold ${getStatusColor(cpuPercent)}`}>
-                  {cpuPercent.toFixed(1)}%
-                </span>
-                <span className={`text-sm font-medium ${getStatusColor(cpuPercent)}`}>
-                  {getStatusLabel(cpuPercent)}
-                </span>
-              </div>
-              <Progress value={cpuPercent} className="h-2" />
-              <div className="text-sm text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Cores</span>
-                  <span className="font-medium text-foreground">{stats.cpu.cores}</span>
-                </div>
-                {stats.cpu.model && (
-                  <div className="flex justify-between mt-1">
-                    <span>Model</span>
-                    <span className="font-medium text-foreground truncate max-w-[150px]" title={stats.cpu.model}>
-                      {stats.cpu.model}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Memory Card */}
-        <Card className={`hover:shadow-md transition-shadow border ${getStatusBg(memoryPercent)}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide">Memory</CardTitle>
-            <MemoryStick className={`h-5 w-5 ${getStatusColor(memoryPercent)}`} />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-end justify-between">
-                <span className={`text-4xl font-bold ${getStatusColor(memoryPercent)}`}>
-                  {memoryPercent.toFixed(1)}%
-                </span>
-                <span className={`text-sm font-medium ${getStatusColor(memoryPercent)}`}>
-                  {getStatusLabel(memoryPercent)}
-                </span>
-              </div>
-              <Progress value={memoryPercent} className="h-2" />
-              <div className="text-sm text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Used</span>
-                  <span className="font-medium text-foreground">{formatBytes(stats.memory.used)}</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span>Total</span>
-                  <span className="font-medium text-foreground">{formatBytes(stats.memory.total)}</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span>Available</span>
-                  <span className="font-medium text-foreground">{formatBytes(stats.memory.available)}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Disk Card */}
-        <Card className={`hover:shadow-md transition-shadow border ${getStatusBg(diskPercent)}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide">Disk</CardTitle>
-            <HardDrive className={`h-5 w-5 ${getStatusColor(diskPercent)}`} />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-end justify-between">
-                <span className={`text-4xl font-bold ${getStatusColor(diskPercent)}`}>
-                  {diskPercent.toFixed(1)}%
-                </span>
-                <span className={`text-sm font-medium ${getStatusColor(diskPercent)}`}>
-                  {getStatusLabel(diskPercent)}
-                </span>
-              </div>
-              <Progress value={diskPercent} className="h-2" />
-              <div className="text-sm text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Used</span>
-                  <span className="font-medium text-foreground">{formatBytes(stats.disk.used)}</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span>Total</span>
-                  <span className="font-medium text-foreground">{formatBytes(stats.disk.total)}</span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span>Free</span>
-                  <span className="font-medium text-foreground">{formatBytes(stats.disk.free)}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ResourceGauge
+          label="CPU"
+          percentage={cpuPercent}
+          icon={Cpu}
+          details={[
+            { label: 'Cores', value: String(stats.cpu.cores) },
+            ...(stats.cpu.model ? [{ label: 'Model', value: stats.cpu.model.slice(0, 30) }] : []),
+          ]}
+        />
+        <ResourceGauge
+          label="Memory"
+          percentage={memoryPercent}
+          icon={MemoryStick}
+          details={[
+            { label: 'Used', value: formatBytes(stats.memory.used) },
+            { label: 'Total', value: formatBytes(stats.memory.total) },
+            { label: 'Available', value: formatBytes(stats.memory.available) },
+          ]}
+        />
+        <ResourceGauge
+          label="Disk"
+          percentage={diskPercent}
+          icon={HardDrive}
+          details={[
+            { label: 'Used', value: formatBytes(stats.disk.used) },
+            { label: 'Total', value: formatBytes(stats.disk.total) },
+            { label: 'Free', value: formatBytes(stats.disk.free) },
+          ]}
+        />
       </div>
 
-      {/* Overall System Health */}
-      <Card className="hover:shadow-md transition-shadow">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wide">System Health Overview</CardTitle>
-          <Activity className="h-5 w-5 text-primary" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className={`text-2xl font-bold ${getStatusColor(cpuPercent)}`}>{cpuPercent.toFixed(0)}%</div>
-                <div className="text-xs text-muted-foreground">CPU</div>
-              </div>
-              <div>
-                <div className={`text-2xl font-bold ${getStatusColor(memoryPercent)}`}>{memoryPercent.toFixed(0)}%</div>
-                <div className="text-xs text-muted-foreground">Memory</div>
-              </div>
-              <div>
-                <div className={`text-2xl font-bold ${getStatusColor(diskPercent)}`}>{diskPercent.toFixed(0)}%</div>
-                <div className="text-xs text-muted-foreground">Disk</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center gap-2 pt-4 border-t">
-              <div className={`w-3 h-3 rounded-full ${cpuPercent < 75 && memoryPercent < 75 && diskPercent < 75 ? 'bg-success' : cpuPercent < 90 && memoryPercent < 90 && diskPercent < 90 ? 'bg-warning' : 'bg-destructive'}`} />
-              <span className="text-sm font-medium">
-                {cpuPercent < 75 && memoryPercent < 75 && diskPercent < 75
-                  ? 'System Healthy'
-                  : cpuPercent < 90 && memoryPercent < 90 && diskPercent < 90
-                    ? 'System Under Load'
-                    : 'System Critical'}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <ParserMetricsPanel
-        parserMetrics={parserMetrics}
-        parserTrend={parserTrend}
-        statusLoading={statusLoading}
-        statusError={statusError}
-        statusLastUpdate={statusLastUpdate}
+      {/* System Health Bar */}
+      <HealthBar
+        label="System Health"
+        segments={[
+          { label: 'Normal', count: healthyCount, color: 'var(--success)', variant: 'success' },
+          { label: 'Warning', count: warningCount, color: 'var(--warning)', variant: 'warning' },
+          { label: 'Critical', count: criticalCount, color: 'var(--destructive)', variant: 'destructive' },
+        ]}
       />
+
+      {/* Parser Metrics */}
+      <ParserMetricsPanel parserMetrics={parserMetrics} parserTrend={parserTrend} statusLoading={statusLoading} statusError={statusError} statusLastUpdate={statusLastUpdate} />
     </div>
   );
 }

@@ -4,13 +4,20 @@ import React from 'react';
 import {
   Area,
   AreaChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip,
   CartesianGrid,
 } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { TimeSeriesPoint } from '@/utils/types';
+
+const chartConfig = {
+  requests: {
+    label: 'Requests',
+    color: 'var(--primary)',
+  },
+} satisfies ChartConfig;
 
 interface TimeSeriesChartProps {
   data: TimeSeriesPoint[];
@@ -22,58 +29,46 @@ function TimeSeriesChart({ data }: TimeSeriesChartProps) {
       hour: '2-digit',
       minute: '2-digit'
     }),
-    value: point.value,
+    requests: point.value,
   }));
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartContainer config={chartConfig} className="h-64 w-full">
       <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+            <stop offset="5%" stopColor="var(--color-requests)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="var(--color-requests)" stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="var(--border)"
           vertical={false}
         />
         <XAxis
           dataKey="time"
           axisLine={false}
           tickLine={false}
-          tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
           tickMargin={8}
         />
         <YAxis
           axisLine={false}
           tickLine={false}
-          tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
           tickMargin={8}
           allowDecimals={false}
         />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: 'var(--popover)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          }}
-          labelStyle={{ color: 'var(--foreground)', fontWeight: 500 }}
-          itemStyle={{ color: 'var(--primary)' }}
-        />
+        <ChartTooltip content={<ChartTooltipContent />} />
         <Area
           type="monotone"
-          dataKey="value"
-          stroke="var(--primary)"
+          dataKey="requests"
+          stroke="var(--color-requests)"
           strokeWidth={2}
           fill="url(#colorRequests)"
           dot={false}
-          activeDot={{ r: 4, fill: 'var(--primary)' }}
+          activeDot={{ r: 4, fill: 'var(--color-requests)' }}
         />
       </AreaChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }
 
