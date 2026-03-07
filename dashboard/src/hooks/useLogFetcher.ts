@@ -191,10 +191,10 @@ export function useLogFetcher() {
         const position = logStore.getPosition(selectedAgentID);
 
         // Determine lines to request:
-        // - First ever connect (position=-1): use maxHistoryLoad to get full history from position=0
+        // - First ever connect (position=-1): use maxHistoryLoad with position=-2 (agent-tracked)
         // - Subsequent fetches: use maxLogsDisplay for incremental updates
         const isFirstEverConnect = position === -1;
-        const requestPosition = isFirstEverConnect ? 0 : position;
+        const requestPosition = isFirstEverConnect ? -2 : position;
         const requestLines = isFirstEverConnect
           ? maxHistoryLoadRef.current
           : Math.min(maxLogsDisplayRef.current, 20000);
@@ -218,8 +218,6 @@ export function useLogFetcher() {
         if (data.logs?.length) {
           buffer.push(data.logs);
           await buffer.flush();
-        } else {
-          logStore.setLoading(false);
         }
 
         const nextPosition = getNextLogCursor(
@@ -233,6 +231,13 @@ export function useLogFetcher() {
         if (isFirstEverConnect) {
           logStore.setCatchingUp(false);
         }
+
+        // Always mark connected on ANY successful API response,
+        // even if 0 new logs were returned (e.g. no new traffic)
+        logStore.setConnected(true);
+        logStore.setError(null);
+        logStore.setLoading(false);
+        lastSuccessRef.current = Date.now();
 
         pollDelayRef.current = config.refreshIntervalMs;
       } catch (err) {
@@ -269,18 +274,21 @@ export function useLogFetcher() {
         if (err instanceof Error && err.name === 'AbortError') return;
         if (!isMounted) return;
 
-        // SSE reconnection with exponential backoff
-        if (retryCount < SSE_MAX_RETRIES) {
+        // Skip retries for 404 — endpoint doesn't exist, retrying won't help
+        const is404 = err instanceof Error && err.message.includes('404');
+        if (is404) {
+          console.warn('Streaming endpoint not available (404), using polling mode');
+          schedulePoll(2000);
+        } else if (retryCount < SSE_MAX_RETRIES) {
+          // SSE reconnection with exponential backoff for transient errors
           const backoff = SSE_INITIAL_BACKOFF * Math.pow(2, retryCount);
           console.warn(`Streaming failed (attempt ${retryCount + 1}/${SSE_MAX_RETRIES}), retrying in ${backoff}ms...`);
           await new Promise<void>((resolve) => {
             const timer = setTimeout(resolve, backoff);
-            // Clean up timer if unmounted
-            if (!isMounted) {
-              clearTimeout(timer);
-              resolve();
-            }
+            // Store timer for cleanup on unmount
+            pollTimeout = timer as unknown as ReturnType<typeof setTimeout>;
           });
+          // Re-check mounted state AFTER the await (fixes race condition)
           if (isMounted && !isPaused && isTabVisible) {
             return startStreaming(retryCount + 1);
           }
