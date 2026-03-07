@@ -6,6 +6,7 @@ export interface DashboardConfig {
   showDemoPage: boolean;
   refreshIntervalMs: number;
   maxLogsDisplay: number;
+  maxHistoryLoad: number;
   trafficTopItemsLimit: number;
   parserTrendWindowMinutes: number;
   agentsEnvOnly: boolean;
@@ -25,6 +26,7 @@ const defaultConfig: DashboardConfig = {
   showDemoPage: true,
   refreshIntervalMs: 5000,
   maxLogsDisplay: 1000,
+  maxHistoryLoad: 5000,
   trafficTopItemsLimit: 10,
   parserTrendWindowMinutes: 30,
   agentsEnvOnly: false,

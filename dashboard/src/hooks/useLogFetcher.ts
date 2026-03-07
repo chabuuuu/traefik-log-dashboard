@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { TraefikLog } from '@/utils/types';
 import { enrichLogsWithGeoLocation } from '@/utils/location';
 import { apiClient } from '@/utils/api-client';
@@ -7,11 +7,15 @@ import { buildLogKey, createLogBuffer, dedupeLogs } from '@/utils/utils/log-batc
 import { getNextLogCursor } from '@/utils/utils/log-cursor';
 import { useConfig } from '@/utils/contexts/ConfigContext';
 import { useAgents } from '@/utils/contexts/AgentContext';
+import { logStore } from '@/utils/stores/log-store';
+import { saveLogsToIDB, loadLogsFromIDB, clearLogsFromIDB } from '@/utils/stores/log-persistence';
 
 const STREAM_BATCH_SIZE = 250;
 const STREAM_FLUSH_INTERVAL = 350;
 const POLL_MAX_INTERVAL = 30000;
 const STALE_CONNECTION_MS = 45000;
+const SSE_MAX_RETRIES = 3;
+const SSE_INITIAL_BACKOFF = 2000;
 
 export interface DedupeDebugStats {
   received: number;
@@ -24,48 +28,35 @@ export function useLogFetcher() {
   const { config } = useConfig();
   const { selectedAgent } = useAgents();
   const maxLogsDisplay = Math.max(1, config.maxLogsDisplay);
-  const requestedLines = Math.min(maxLogsDisplay, 20000);
-  const [logs, setLogs] = useState<TraefikLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const maxHistoryLoad = Math.max(1, config.maxHistoryLoad);
+
+  // Subscribe to logStore for reactive updates
+  const storeState = useSyncExternalStore(
+    logStore.subscribe,
+    logStore.getState,
+    logStore.getState
+  );
+
   const [isPaused, setIsPaused] = useState(false);
-  const [agentId, setAgentId] = useState<string | null>(null);
-  const [agentName, setAgentName] = useState<string | null>(null);
   const [dedupeDebug, setDedupeDebug] = useState<DedupeDebugStats | null>(null);
 
-  const positionRef = useRef<number>(-1);
-  const isFirstFetch = useRef(true);
   const previousAgentRef = useRef<string | null>(null);
-
-  // Restore position from sessionStorage on mount (survives page refresh)
-  const getStorageKey = (id: string) => `tld:logPosition:${id}`;
-  if (positionRef.current === -1 && selectedAgent?.id) {
-    const saved = sessionStorage.getItem(getStorageKey(selectedAgent.id));
-    if (saved !== null) {
-      const parsed = Number(saved);
-      if (Number.isFinite(parsed) && parsed >= 0) {
-        positionRef.current = parsed;
-      }
-    }
-  }
-  const seenLogsRef = useRef<Set<string>>(new Set());
+  const isFirstFetchRef = useRef(true);
   const dedupeReceivedRef = useRef(0);
   const dedupeDroppedRef = useRef(0);
+  const idbHydrated = useRef(false);
 
-  // Use refs for derived config values to prevent effect re-fires that lose initial tail data
+  // Use refs for derived config values to prevent effect re-fires
   const maxLogsDisplayRef = useRef(maxLogsDisplay);
   maxLogsDisplayRef.current = maxLogsDisplay;
+  const maxHistoryLoadRef = useRef(maxHistoryLoad);
+  maxHistoryLoadRef.current = maxHistoryLoad;
   const maxSeenLogsRef = useRef(maxLogsDisplay * 2);
   maxSeenLogsRef.current = maxLogsDisplay * 2;
-  const requestedLinesRef = useRef(requestedLines);
-  requestedLinesRef.current = requestedLines;
 
   const pollDelayRef = useRef(config.refreshIntervalMs);
   const lastSuccessRef = useRef<number | null>(null);
 
-  // REDUNDANCY FIX: Use shared visibility hook
   const isTabVisible = useTabVisibility();
 
   useEffect(() => {
@@ -73,36 +64,24 @@ export function useLogFetcher() {
     const selectedAgentName = selectedAgent?.name ?? null;
     const hasAgentChanged = previousAgentRef.current !== selectedAgentID;
 
-    setAgentId(selectedAgentID ?? null);
-    setAgentName(selectedAgentName);
-
     if (hasAgentChanged) {
-      setLogs([]);
-      setConnected(false);
-      setLastUpdate(null);
-      setError(null);
-      setLoading(true);
-      // Restore position from sessionStorage for the new agent, or reset to tail mode
-      const newAgentId = selectedAgentID ?? null;
-      if (newAgentId) {
-        const saved = sessionStorage.getItem(getStorageKey(newAgentId));
-        const parsed = saved !== null ? Number(saved) : NaN;
-        positionRef.current = Number.isFinite(parsed) && parsed >= 0 ? parsed : -1;
-      } else {
-        positionRef.current = -1;
-      }
-      isFirstFetch.current = true;
-      seenLogsRef.current.clear();
+      // Agent switched — clear store and start fresh
+      logStore.clear();
+      logStore.setAgentInfo(selectedAgentID ?? null, selectedAgentName);
+      isFirstFetchRef.current = true;
+      idbHydrated.current = false;
       dedupeReceivedRef.current = 0;
       dedupeDroppedRef.current = 0;
       setDedupeDebug(null);
       lastSuccessRef.current = null;
       previousAgentRef.current = selectedAgentID ?? null;
+    } else {
+      logStore.setAgentInfo(selectedAgentID ?? null, selectedAgentName);
     }
 
     if (!selectedAgentID) {
-      setLoading(false);
-      setError('No agent selected or available');
+      logStore.setLoading(false);
+      logStore.setError('No agent selected or available');
       return;
     }
 
@@ -126,7 +105,8 @@ export function useLogFetcher() {
     const processLogs = async (rawLogs: TraefikLog[]) => {
       if (!isMounted || rawLogs.length === 0) return;
 
-      const uniqueLogs = dedupeLogs(rawLogs, seenLogsRef.current, maxSeenLogsRef.current, buildLogKey);
+      const seenKeys = logStore.getSeenKeys();
+      const uniqueLogs = dedupeLogs(rawLogs, seenKeys, maxSeenLogsRef.current, buildLogKey);
       const dropped = rawLogs.length - uniqueLogs.length;
       dedupeReceivedRef.current += rawLogs.length;
       dedupeDroppedRef.current += dropped;
@@ -143,7 +123,7 @@ export function useLogFetcher() {
       }
 
       if (uniqueLogs.length === 0) {
-        setLoading(false);
+        logStore.setLoading(false);
         return;
       }
 
@@ -159,18 +139,17 @@ export function useLogFetcher() {
 
       if (!isMounted) return;
 
-      setLogs((prevLogs: TraefikLog[]) => {
-        const nextLogs = isFirstFetch.current
-          ? enrichedLogs
-          : [...prevLogs, ...enrichedLogs];
-        isFirstFetch.current = false;
-        return nextLogs.slice(-maxLogsDisplayRef.current);
-      });
-      setConnected(true);
-      setError(null);
-      setLastUpdate(new Date());
-      setLoading(false);
+      logStore.appendLogs(enrichedLogs, maxLogsDisplayRef.current, isFirstFetchRef.current);
+      isFirstFetchRef.current = false;
+      logStore.setConnected(true);
+      logStore.setError(null);
+      logStore.setLastUpdate(new Date());
       lastSuccessRef.current = Date.now();
+
+      // Persist to IndexedDB (debounced)
+      const currentState = logStore.getState();
+      const pos = logStore.getPosition(selectedAgentID);
+      saveLogsToIDB(selectedAgentID, currentState.logs, pos);
     };
 
     const buffer = createLogBuffer(
@@ -191,7 +170,7 @@ export function useLogFetcher() {
         if (isPaused) return;
         const age = Date.now() - lastSuccessRef.current;
         if (age > STALE_CONNECTION_MS) {
-          setConnected(false);
+          logStore.setConnected(false);
         }
       }, STALE_CONNECTION_MS);
     };
@@ -209,25 +188,38 @@ export function useLogFetcher() {
 
       const controller = addController();
       try {
-        const position = positionRef.current ?? -1;
+        const position = logStore.getPosition(selectedAgentID);
+
+        // Determine lines to request:
+        // - First ever connect (position=-1): use maxHistoryLoad to get full history from position=0
+        // - Subsequent fetches: use maxLogsDisplay for incremental updates
+        const isFirstEverConnect = position === -1;
+        const requestPosition = isFirstEverConnect ? 0 : position;
+        const requestLines = isFirstEverConnect
+          ? maxHistoryLoadRef.current
+          : Math.min(maxLogsDisplayRef.current, 20000);
+
+        if (isFirstEverConnect) {
+          logStore.setCatchingUp(true);
+        }
+
         const data = await apiClient.getAccessLogs({
           agentId: selectedAgentID,
-          position,
-          lines: requestedLinesRef.current,
+          position: requestPosition,
+          lines: requestLines,
           signal: controller.signal,
         });
         if (!isMounted) return;
 
-        if (isFirstFetch.current && data.agent) {
-          setAgentId(data.agent.id);
-          setAgentName(data.agent.name);
+        if (isFirstFetchRef.current && data.agent) {
+          logStore.setAgentInfo(data.agent.id, data.agent.name);
         }
 
         if (data.logs?.length) {
           buffer.push(data.logs);
           await buffer.flush();
         } else {
-          setLoading(false);
+          logStore.setLoading(false);
         }
 
         const nextPosition = getNextLogCursor(
@@ -235,10 +227,11 @@ export function useLogFetcher() {
         );
 
         if (typeof nextPosition === 'number') {
-          positionRef.current = nextPosition;
-          try {
-            sessionStorage.setItem(getStorageKey(selectedAgentID), String(nextPosition));
-          } catch { /* sessionStorage may be unavailable */ }
+          logStore.setPosition(selectedAgentID, nextPosition);
+        }
+
+        if (isFirstEverConnect) {
+          logStore.setCatchingUp(false);
         }
 
         pollDelayRef.current = config.refreshIntervalMs;
@@ -246,9 +239,10 @@ export function useLogFetcher() {
         if (err instanceof Error && err.name === 'AbortError') return;
         if (!isMounted) return;
         console.error('Error fetching logs:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch logs');
-        setConnected(false);
-        setLoading(false);
+        logStore.setError(err instanceof Error ? err.message : 'Failed to fetch logs');
+        logStore.setConnected(false);
+        logStore.setLoading(false);
+        logStore.setCatchingUp(false);
         pollDelayRef.current = Math.min(pollDelayRef.current * 1.6, POLL_MAX_INTERVAL);
       } finally {
         activeControllers.delete(controller);
@@ -258,13 +252,11 @@ export function useLogFetcher() {
       }
     };
 
-    const startStreaming = async () => {
-      if (!selectedAgentID) {
-        return;
-      }
+    const startStreaming = async (retryCount = 0): Promise<void> => {
+      if (!selectedAgentID) return;
       const controller = addController();
+
       try {
-        setLoading(true);
         for await (const line of apiClient.streamAccessLogs({ agentId: selectedAgentID, signal: controller.signal })) {
           if (!isMounted) return;
           if (isPaused || !isTabVisible) {
@@ -275,8 +267,27 @@ export function useLogFetcher() {
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.warn('Streaming failed, falling back to polling:', err);
-        schedulePoll(2000);
+        if (!isMounted) return;
+
+        // SSE reconnection with exponential backoff
+        if (retryCount < SSE_MAX_RETRIES) {
+          const backoff = SSE_INITIAL_BACKOFF * Math.pow(2, retryCount);
+          console.warn(`Streaming failed (attempt ${retryCount + 1}/${SSE_MAX_RETRIES}), retrying in ${backoff}ms...`);
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, backoff);
+            // Clean up timer if unmounted
+            if (!isMounted) {
+              clearTimeout(timer);
+              resolve();
+            }
+          });
+          if (isMounted && !isPaused && isTabVisible) {
+            return startStreaming(retryCount + 1);
+          }
+        } else {
+          console.warn('Streaming failed after max retries, falling back to polling');
+          schedulePoll(2000);
+        }
       } finally {
         activeControllers.delete(controller);
         try {
@@ -284,18 +295,40 @@ export function useLogFetcher() {
         } catch (flushError) {
           console.error('Failed to flush buffered logs:', flushError);
         }
-        if (isMounted) setLoading(false);
       }
     };
 
-    // Always catch up with cursor-based polling before opening stream.
-    // This preserves missed logs across tab visibility changes.
+    // ── Initialization sequence ────────────────────────────────────
+    const initialize = async () => {
+      // Step 1: Hydrate from IndexedDB if we haven't already for this agent
+      if (!idbHydrated.current && hasAgentChanged) {
+        idbHydrated.current = true;
+        try {
+          const cached = await loadLogsFromIDB(selectedAgentID);
+          if (cached && cached.logs.length > 0 && isMounted) {
+            logStore.setLogs(cached.logs, true /* isCached */);
+            // Restore position from IDB if we don't have one
+            if (!logStore.hasPosition(selectedAgentID)) {
+              logStore.setPosition(selectedAgentID, cached.position);
+            }
+            lastSuccessRef.current = Date.now();
+            isFirstFetchRef.current = false;
+          }
+        } catch (err) {
+          console.warn('Failed to hydrate from IndexedDB:', err);
+        }
+      }
+
+      if (!isMounted || isPaused || !isTabVisible) return;
+
+      // Step 2: Catch-up poll then stream
+      await pollLogs(false);
+      if (!isMounted || isPaused || !isTabVisible) return;
+      await startStreaming();
+    };
+
     if (!isPaused && isTabVisible) {
-      void (async () => {
-        await pollLogs(false);
-        if (!isMounted || isPaused || !isTabVisible) return;
-        await startStreaming();
-      })();
+      void initialize();
     } else if (isTabVisible) {
       schedulePoll();
     }
@@ -309,24 +342,27 @@ export function useLogFetcher() {
       if (pollTimeout) clearTimeout(pollTimeout);
       if (staleInterval) clearInterval(staleInterval);
     };
-  // maxLogsDisplay, maxSeenLogs, requestedLines are accessed via refs to prevent
-  // effect re-fires that would reset position tracking and lose initial tail data
+    // maxLogsDisplay, maxSeenLogs are accessed via refs to prevent
+    // effect re-fires that would reset position tracking and lose initial tail data
   }, [config.refreshIntervalMs, isPaused, isTabVisible, selectedAgent?.id, selectedAgent?.name]);
 
+  // Trim logs when maxLogsDisplay config changes
   useEffect(() => {
-    setLogs((prevLogs) => prevLogs.slice(-maxLogsDisplay));
+    logStore.trimLogs(maxLogsDisplay);
   }, [maxLogsDisplay]);
 
   return {
-    logs,
-    loading,
-    error,
-    connected,
-    lastUpdate,
+    logs: storeState.logs,
+    loading: storeState.loading,
+    error: storeState.error,
+    connected: storeState.connected,
+    lastUpdate: storeState.lastUpdate,
     isPaused,
     setIsPaused,
-    agentId,
-    agentName,
+    agentId: storeState.agentId,
+    agentName: storeState.agentName,
     dedupeDebug,
+    isCatchingUp: storeState.isCatchingUp,
+    isCached: storeState.isCached,
   };
 }

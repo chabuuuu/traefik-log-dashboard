@@ -1,7 +1,7 @@
-import { ServerOff, Loader2 } from 'lucide-react';
+import { ServerOff, Loader2, History, Database } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
-import { useLogFetcher } from '@/hooks/useLogFetcher';
+import { useLogContext } from '@/utils/contexts/LogContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import DashboardWithFilters from '@/components/dashboard/DashboardWithFilters';
@@ -21,22 +21,33 @@ export default function DashboardPage() {
     agentId,
     agentName,
     dedupeDebug,
-  } = useLogFetcher();
+    isCatchingUp,
+    isCached,
+  } = useLogContext();
 
-  if (loading) {
+  if (loading && logs.length === 0) {
     return (
       <DashboardShell title="Dashboard" showControls={false}>
         <div className="flex items-center justify-center h-[60vh]">
           <div className="text-center">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-muted-foreground">Connecting to agent...</p>
+            {isCatchingUp ? (
+              <>
+                <History className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading log history...</p>
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Connecting to agent...</p>
+              </>
+            )}
           </div>
         </div>
       </DashboardShell>
     );
   }
 
-  if (error && !connected) {
+  if (error && !connected && logs.length === 0) {
     const isNoAgentError = error.includes('No agent selected or available');
 
     return (
@@ -94,6 +105,21 @@ export default function DashboardPage() {
       }}
       dedupeDebug={dedupeDebug}
     >
+      {(isCatchingUp || isCached) && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/50 px-4 py-2 text-sm text-muted-foreground">
+          {isCatchingUp ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading historical logs...</span>
+            </>
+          ) : isCached ? (
+            <>
+              <Database className="h-4 w-4" />
+              <span>Showing cached logs &mdash; reconnecting for live updates...</span>
+            </>
+          ) : null}
+        </div>
+      )}
       <ErrorBoundary>
         <DashboardWithFilters
           logs={logs}
