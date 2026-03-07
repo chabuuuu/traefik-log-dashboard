@@ -4,15 +4,19 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"github.com/hhftechnology/traefik-log-dashboard/agent/pkg/logger"
 )
 
-// RespondJSON sends a JSON response with the given status code
-func RespondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+// RespondJSON sends a JSON response with the given status code.
+func RespondJSON(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	if data != nil {
-		json.NewEncoder(w).Encode(data)
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			logger.Log.Printf("failed to encode JSON response: %v", err)
+		}
 	}
 }
 

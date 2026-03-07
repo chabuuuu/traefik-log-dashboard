@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hhftechnology/traefik-log-dashboard/cli/internal/logs"
@@ -28,7 +29,7 @@ func (s *LogService) FetchAccessLogs(maxLogs int) ([]logs.TraefikLog, error) {
 		return logs.GenerateDemoLogs(maxLogs), nil
 	}
 
-	accessLogs, err := logs.FetchAccessLogs(s.agentURL, s.authToken, maxLogs)
+	accessLogs, err := logs.FetchAccessLogs(context.Background(), s.agentURL, s.authToken, maxLogs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch access logs: %w", err)
 	}
@@ -42,7 +43,7 @@ func (s *LogService) FetchErrorLogs(maxLogs int) ([]string, error) {
 		return generateDemoErrorLogs(maxLogs), nil
 	}
 
-	errorLogs, err := logs.FetchErrorLogs(s.agentURL, s.authToken, maxLogs)
+	errorLogs, err := logs.FetchErrorLogs(context.Background(), s.agentURL, s.authToken, maxLogs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch error logs: %w", err)
 	}
@@ -56,7 +57,7 @@ func (s *LogService) FetchSystemStats() (*logs.SystemStats, error) {
 		return generateDemoSystemStats(), nil
 	}
 
-	stats, err := logs.FetchSystemStats(s.agentURL, s.authToken)
+	stats, err := logs.FetchSystemStats(context.Background(), s.agentURL, s.authToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch system stats: %w", err)
 	}

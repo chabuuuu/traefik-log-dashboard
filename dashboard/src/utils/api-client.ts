@@ -33,6 +33,8 @@ interface FetchJSONInput {
   options?: RequestInit;
   timeoutMs?: number;
   agentId?: string;
+  /** Number of retry attempts for transient failures (default: 0 — no retries). */
+  retries?: number;
 }
 
 export class APIClient {
@@ -48,44 +50,62 @@ export class APIClient {
   }
 
   private async fetchJSON<T>(input: FetchJSONInput): Promise<T> {
-    const options = input.options ?? {};
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      Pragma: 'no-cache',
-      ...((options.headers as Record<string, string>) || {}),
-    };
+    const maxRetries = input.retries ?? 0;
+    let lastError: Error | null = null;
 
-    if (input.agentId) {
-      headers['X-Agent-Id'] = input.agentId;
-    }
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const options = input.options ?? {};
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        ...((options.headers as Record<string, string>) || {}),
+      };
 
-    const url = this.buildApiURL(input.endpoint);
-    const urlWithTimestamp = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-    const controller = new AbortController();
-    const timeoutID = setTimeout(() => controller.abort(), input.timeoutMs ?? 15000);
-
-    if (options.signal) {
-      options.signal.addEventListener('abort', () => controller.abort(), { once: true });
-    }
-
-    try {
-      const response = await fetch(urlWithTimestamp, {
-        ...options,
-        headers,
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`API Error: ${response.status} - ${error}`);
+      if (input.agentId) {
+        headers['X-Agent-Id'] = input.agentId;
       }
 
-      return response.json();
-    } finally {
-      clearTimeout(timeoutID);
+      const url = this.buildApiURL(input.endpoint);
+      const urlWithTimestamp = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      const controller = new AbortController();
+      const timeoutID = setTimeout(() => controller.abort(), input.timeoutMs ?? 15000);
+
+      if (options.signal) {
+        options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+
+      try {
+        const response = await fetch(urlWithTimestamp, {
+          ...options,
+          headers,
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`API Error: ${response.status} - ${error}`);
+        }
+
+        return response.json();
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        // Never retry aborts or client errors (4xx)
+        if (lastError.name === 'AbortError') throw lastError;
+        if (lastError.message.startsWith('API Error: 4')) throw lastError;
+
+        // Retry on network errors and 5xx with exponential backoff
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        }
+      } finally {
+        clearTimeout(timeoutID);
+      }
     }
+
+    throw lastError!;
   }
 
   async getStatus(input: AgentRequestInput): Promise<StatusResponse> {
@@ -130,6 +150,7 @@ export class APIClient {
       endpoint: `/api/logs/access?${params}`,
       agentId: input.agentId,
       options: { signal: input.signal },
+      retries: 2,
     });
   }
 
@@ -143,6 +164,7 @@ export class APIClient {
       endpoint: `/api/logs/error?${params}`,
       agentId: input.agentId,
       options: { signal: input.signal },
+      retries: 2,
     });
   }
 
@@ -165,6 +187,7 @@ export class APIClient {
       endpoint: '/api/system/resources',
       agentId: input.agentId,
       options: { signal: input.signal },
+      retries: 2,
     });
   }
 

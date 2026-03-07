@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 )
@@ -29,36 +30,27 @@ func (a *Authenticator) Middleware(next http.HandlerFunc) http.HandlerFunc {
 		// Get Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "Unauthorized: Missing Authorization header", http.StatusUnauthorized)
+			http.Error(w, "unauthorized: missing authorization header", http.StatusUnauthorized)
 			return
 		}
 
 		// Check for Bearer token format
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			http.Error(w, "Unauthorized: Invalid Authorization format", http.StatusUnauthorized)
+			http.Error(w, "unauthorized: invalid authorization format", http.StatusUnauthorized)
 			return
 		}
 
-		// Validate token
+		// Validate token using constant-time comparison to prevent timing attacks
 		token := parts[1]
-		if token != a.token {
-			http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+		if subtle.ConstantTimeCompare([]byte(token), []byte(a.token)) != 1 {
+			http.Error(w, "unauthorized: invalid token", http.StatusUnauthorized)
 			return
 		}
 
 		// Token is valid, proceed to next handler
 		next(w, r)
 	}
-}
-
-// ValidateToken checks if the provided token matches the configured token
-func (a *Authenticator) ValidateToken(token string) bool {
-	// If no token is configured, allow all requests
-	if a.token == "" {
-		return true
-	}
-	return token == a.token
 }
 
 // IsEnabled returns true if authentication is enabled

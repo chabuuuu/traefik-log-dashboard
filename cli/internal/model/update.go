@@ -123,13 +123,18 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "d":
-		// Toggle demo mode
+		// Toggle demo mode. When switching ON, populate immediately from the
+		// demo data generator so the view is never blank. When switching OFF,
+		// fire a real fetch so the UI reflects live data without waiting for
+		// the next tick.
 		m.cfg.DemoMode = !m.cfg.DemoMode
 		if m.cfg.DemoMode {
 			m.accessLogs = logs.GenerateDemoLogs(100)
 			m.metrics = logs.CalculateMetrics(m.accessLogs)
+			return m, nil
 		}
-		return m, nil
+		m.loading = true
+		return m, m.fetchData()
 	}
 
 	return m, nil

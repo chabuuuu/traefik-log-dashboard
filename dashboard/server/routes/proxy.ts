@@ -71,6 +71,15 @@ for (const basePath of proxyPaths) {
       changeOrigin: true,
       on: {
         proxyReq: (proxyReq, req) => {
+          // Express strips the mount prefix from req.url when using
+          // router.use(basePath, ...). Restore the full path so the
+          // agent receives the correct URL (e.g. /api/logs/access
+          // instead of just /access).
+          const originalUrl = (req as ProxyRequest).originalUrl;
+          if (originalUrl) {
+            proxyReq.path = originalUrl;
+          }
+
           const token = (req as ProxyRequest).proxyAgent?.token || '';
           if (token) {
             proxyReq.setHeader('Authorization', `Bearer ${token}`);

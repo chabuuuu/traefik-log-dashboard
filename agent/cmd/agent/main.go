@@ -44,6 +44,9 @@ func registerRoutes(mux *http.ServeMux, chain middleware.Middleware, handler *ro
 func main() {
 	// Load configuration
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		logger.Log.Fatalf("Invalid configuration: %v", err)
+	}
 
 	logger.Log.Printf("Starting Traefik Log Dashboard Agent...")
 	logger.Log.Printf("Access Log Path: %s", cfg.AccessPath)

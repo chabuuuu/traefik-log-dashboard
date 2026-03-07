@@ -14,81 +14,23 @@ import (
 	"github.com/hhftechnology/traefik-log-dashboard/agent/pkg/logs"
 )
 
-// HandleAccessLogs handles requests for access logs
+// HandleAccessLogs handles requests for access logs.
 func (h *Handler) HandleAccessLogs(w http.ResponseWriter, r *http.Request) {
-	// Get query parameters
-	position := utils.GetQueryParamInt64(r, "position", -2) // -2 means use tracked position
-	lines := utils.GetQueryParamInt(r, "lines", 1000)
-	tail := utils.GetQueryParamBool(r, "tail", false)
-
-	// Check if path exists
-	fileInfo, err := os.Stat(h.config.AccessPath)
-	if err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	var result logs.LogResult
-
-	if fileInfo.IsDir() {
-		// For directories, get logs from all files
-		if tail || position == -2 {
-			// First request or tail mode - get last N lines
-			positions := []logs.Position{}
-			result, err = logs.GetLogsWithLimit(h.config.AccessPath, positions, false, false, lines)
-		} else {
-			// Use provided position
-			positions := []logs.Position{{Position: position}}
-			result, err = logs.GetLogsWithLimit(h.config.AccessPath, positions, false, false, lines)
-		}
-	} else {
-		// Single file
-		trackedPos := h.state.GetFilePosition(h.config.AccessPath)
-
-		// Determine position to use
-		var usePosition int64
-		if position == -2 {
-			// Use tracked position
-			usePosition = trackedPos
-		} else if position == -1 || tail {
-			// Tail mode requested
-			usePosition = -1
-		} else {
-			// Use provided position
-			usePosition = position
-		}
-
-		positions := []logs.Position{{Position: usePosition}}
-		result, err = logs.GetLogsWithLimit(h.config.AccessPath, positions, false, false, lines)
-
-		// Update tracked position if we got results
-		if err == nil && len(result.Positions) > 0 {
-			h.state.SetFilePosition(h.config.AccessPath, result.Positions[0].Position)
-		}
-	}
-
-	if err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Limit the number of logs returned
-	if len(result.Logs) > lines {
-		// Keep only the most recent logs
-		startIdx := len(result.Logs) - lines
-		result.Logs = result.Logs[startIdx:]
-	}
-
-	utils.RespondJSON(w, http.StatusOK, result)
+	h.handleLogs(w, r, h.config.AccessPath, false, 1000)
 }
 
-// HandleErrorLogs handles requests for error logs
+// HandleErrorLogs handles requests for error logs.
 func (h *Handler) HandleErrorLogs(w http.ResponseWriter, r *http.Request) {
-	position := utils.GetQueryParamInt64(r, "position", -2)
-	lines := utils.GetQueryParamInt(r, "lines", 100)
+	h.handleLogs(w, r, h.config.ErrorPath, true, 100)
+}
+
+// handleLogs is the shared implementation for access and error log retrieval.
+func (h *Handler) handleLogs(w http.ResponseWriter, r *http.Request, path string, isErrorLog bool, defaultLines int) {
+	position := utils.GetQueryParamInt64(r, "position", -2) // -2 means use tracked position
+	lines := utils.GetQueryParamInt(r, "lines", defaultLines)
 	tail := utils.GetQueryParamBool(r, "tail", false)
 
-	fileInfo, err := os.Stat(h.config.ErrorPath)
+	fileInfo, err := os.Stat(path)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -99,13 +41,13 @@ func (h *Handler) HandleErrorLogs(w http.ResponseWriter, r *http.Request) {
 	if fileInfo.IsDir() {
 		if tail || position == -2 {
 			positions := []logs.Position{}
-			result, err = logs.GetLogsWithLimit(h.config.ErrorPath, positions, true, false, lines)
+			result, err = logs.GetLogsWithLimit(path, positions, isErrorLog, false, lines)
 		} else {
 			positions := []logs.Position{{Position: position}}
-			result, err = logs.GetLogsWithLimit(h.config.ErrorPath, positions, true, false, lines)
+			result, err = logs.GetLogsWithLimit(path, positions, isErrorLog, false, lines)
 		}
 	} else {
-		trackedPos := h.state.GetFilePosition(h.config.ErrorPath)
+		trackedPos := h.state.GetFilePosition(path)
 
 		var usePosition int64
 		if position == -2 {
@@ -117,10 +59,10 @@ func (h *Handler) HandleErrorLogs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		positions := []logs.Position{{Position: usePosition}}
-		result, err = logs.GetLogsWithLimit(h.config.ErrorPath, positions, true, false, lines)
+		result, err = logs.GetLogsWithLimit(path, positions, isErrorLog, false, lines)
 
 		if err == nil && len(result.Positions) > 0 {
-			h.state.SetFilePosition(h.config.ErrorPath, result.Positions[0].Position)
+			h.state.SetFilePosition(path, result.Positions[0].Position)
 		}
 	}
 

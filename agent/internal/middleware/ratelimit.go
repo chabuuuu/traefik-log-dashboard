@@ -30,7 +30,11 @@ func startCleanup(window time.Duration) {
 			for range ticker.C {
 				now := time.Now()
 				rateLimitStore.Range(func(key, value any) bool {
-					rec := value.(*ipRecord)
+					rec, ok := value.(*ipRecord)
+					if !ok {
+						rateLimitStore.Delete(key)
+						return true
+					}
 					rec.mu.Lock()
 					// Remove the entry entirely if all timestamps are expired.
 					allExpired := true
@@ -89,7 +93,12 @@ func RateLimit(requestsPerMinute int) Middleware {
 
 			// Load or create the record for this IP.
 			val, _ := rateLimitStore.LoadOrStore(ip, &ipRecord{})
-			rec := val.(*ipRecord)
+			rec, ok := val.(*ipRecord)
+			if !ok {
+				rateLimitStore.Delete(ip)
+				next.ServeHTTP(w, r)
+				return
+			}
 
 			rec.mu.Lock()
 
