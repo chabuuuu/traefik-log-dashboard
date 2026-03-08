@@ -86,11 +86,7 @@ export const logStore = {
   ): void {
     if (newLogs.length === 0) return;
 
-    const maxSeen = maxDisplay * 2;
-    const unique = dedupeLogs(newLogs, seenKeys, maxSeen, buildLogKey);
-    if (unique.length === 0) return;
-
-    const combined = isFirstBatch ? unique : [...state.logs, ...unique];
+    const combined = isFirstBatch ? newLogs : [...state.logs, ...newLogs];
     state = {
       ...state,
       logs: combined.slice(-maxDisplay),

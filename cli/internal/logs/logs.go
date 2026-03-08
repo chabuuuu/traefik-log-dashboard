@@ -111,24 +111,17 @@ func FetchAccessLogs(ctx context.Context, agentURL, authToken string, maxLogs in
 	}
 
 	var result struct {
-		Logs []string `json:"logs"`
+		Logs []TraefikLog `json:"logs"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	// Parse log lines
+	// Logs are already parsed by the backend
 	var logs []TraefikLog
-	for _, line := range result.Logs {
-		if line == "" {
-			continue
-		}
-
-		var log TraefikLog
-		if err := json.Unmarshal([]byte(line), &log); err == nil {
-			logs = append(logs, log)
-		}
+	for _, log := range result.Logs {
+		logs = append(logs, log)
 	}
 
 	return logs, nil
@@ -136,7 +129,7 @@ func FetchAccessLogs(ctx context.Context, agentURL, authToken string, maxLogs in
 
 // FetchErrorLogs fetches error logs from the agent. The provided context
 // controls cancellation and deadline propagation for the underlying request.
-func FetchErrorLogs(ctx context.Context, agentURL, authToken string, maxLogs int) ([]string, error) {
+func FetchErrorLogs(ctx context.Context, agentURL, authToken string, maxLogs int) ([]TraefikLog, error) {
 	url := fmt.Sprintf("%s/api/logs/error?lines=%d", agentURL, maxLogs)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -160,14 +153,19 @@ func FetchErrorLogs(ctx context.Context, agentURL, authToken string, maxLogs int
 	}
 
 	var result struct {
-		Logs []string `json:"logs"`
+		Logs []TraefikLog `json:"logs"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	return result.Logs, nil
+	var logs []TraefikLog
+	for _, log := range result.Logs {
+		logs = append(logs, log)
+	}
+
+	return logs, nil
 }
 
 // FetchSystemStats fetches system statistics from the agent. The provided
