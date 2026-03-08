@@ -1,6 +1,6 @@
 'use client';
 
-import { Moon, Sun, Wifi, WifiOff, Pause, Play, RefreshCw, FilterX } from 'lucide-react';
+import { Moon, Sun, Wifi, WifiOff, Pause, Play, RefreshCw, FilterX, RotateCcw } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { SidebarTrigger } from '@/components/ui/ui-sidebar';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ interface DashboardHeaderProps {
   agentName?: string | null;
   hideInternalTraffic?: boolean;
   onToggleHideInternalTraffic?: () => void;
+  onLoadRecent?: () => void;
   dedupeDebug?: {
     received: number;
     kept: number;
@@ -44,6 +45,7 @@ export function DashboardHeader({
   agentName,
   hideInternalTraffic = false,
   onToggleHideInternalTraffic,
+  onLoadRecent,
   dedupeDebug,
 }: DashboardHeaderProps) {
   const { theme, setTheme } = useTheme();
@@ -104,6 +106,20 @@ export function DashboardHeader({
                 <RefreshCw className="h-3 w-3" />
                 {lastUpdate.toLocaleTimeString()}
               </span>
+            )}
+
+            {/* Load Recent Button */}
+            {onLoadRecent && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onLoadRecent}
+                className="h-8 gap-1.5"
+                title="Load recent logs (reset position and fetch tail)"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">Load recent</span>
+              </Button>
             )}
 
             {/* Pause/Resume Button */}

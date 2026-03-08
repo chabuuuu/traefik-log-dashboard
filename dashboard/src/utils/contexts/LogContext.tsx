@@ -15,6 +15,7 @@ interface LogContextType {
   dedupeDebug: DedupeDebugStats | null;
   isCatchingUp: boolean;
   isCached: boolean;
+  resetAndLoadRecent: () => void;
 }
 
 const LogContext = createContext<LogContextType | undefined>(undefined);
@@ -45,6 +46,7 @@ export function LogProvider({ children }: { children: React.ReactNode }) {
       logFetcherState.dedupeDebug,
       logFetcherState.isCatchingUp,
       logFetcherState.isCached,
+      logFetcherState.resetAndLoadRecent,
     ]
   );
 

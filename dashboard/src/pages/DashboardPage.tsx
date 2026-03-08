@@ -23,6 +23,7 @@ export default function DashboardPage() {
     dedupeDebug,
     isCatchingUp,
     isCached,
+    resetAndLoadRecent,
   } = useLogContext();
 
   if (loading && logs.length === 0) {
@@ -103,6 +104,7 @@ export default function DashboardPage() {
       onToggleHideInternalTraffic={() => {
         updateSettings({ hideInternalTraffic: !settings.hideInternalTraffic });
       }}
+      onLoadRecent={resetAndLoadRecent}
       dedupeDebug={dedupeDebug}
     >
       {(isCatchingUp || isCached) && (

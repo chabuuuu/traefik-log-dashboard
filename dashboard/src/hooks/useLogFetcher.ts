@@ -191,10 +191,11 @@ export function useLogFetcher() {
         const position = logStore.getPosition(selectedAgentID);
 
         // Determine lines to request:
-        // - First ever connect (position=-1): use maxHistoryLoad with position=-2 (agent-tracked)
+        // - First ever connect (position=-1): use tail mode (-1) to always get recent logs
+        //   (agent-tracked position can be at EOF, causing empty responses)
         // - Subsequent fetches: use maxLogsDisplay for incremental updates
         const isFirstEverConnect = position === -1;
-        const requestPosition = isFirstEverConnect ? -2 : position;
+        const requestPosition = isFirstEverConnect ? -1 : position;
         const requestLines = isFirstEverConnect
           ? maxHistoryLoadRef.current
           : Math.min(maxLogsDisplayRef.current, 20000);
@@ -352,12 +353,21 @@ export function useLogFetcher() {
     };
     // maxLogsDisplay, maxSeenLogs are accessed via refs to prevent
     // effect re-fires that would reset position tracking and lose initial tail data
-  }, [config.refreshIntervalMs, isPaused, isTabVisible, selectedAgent?.id, selectedAgent?.name]);
+    // resetTrigger causes re-init when user clicks "Load recent"
+  }, [config.refreshIntervalMs, isPaused, isTabVisible, selectedAgent?.id, selectedAgent?.name, storeState.resetTrigger]);
 
   // Trim logs when maxLogsDisplay config changes
   useEffect(() => {
     logStore.trimLogs(maxLogsDisplay);
   }, [maxLogsDisplay]);
+
+  const resetAndLoadRecent = () => {
+    if (selectedAgent?.id) {
+      logStore.clearPosition(selectedAgent.id);
+      logStore.clearLogs();
+      logStore.requestReset();
+    }
+  };
 
   return {
     logs: storeState.logs,
@@ -372,5 +382,6 @@ export function useLogFetcher() {
     dedupeDebug,
     isCatchingUp: storeState.isCatchingUp,
     isCached: storeState.isCached,
+    resetAndLoadRecent,
   };
 }

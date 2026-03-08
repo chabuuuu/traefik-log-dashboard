@@ -52,6 +52,10 @@ func (h *Handler) handleLogs(w http.ResponseWriter, r *http.Request, path string
 		var usePosition int64
 		if position == -2 {
 			usePosition = trackedPos
+			// Fallback to tail when stuck at EOF (no new data would be returned)
+			if trackedPos >= 0 && fileInfo.Size() > 0 && trackedPos >= fileInfo.Size() {
+				usePosition = -1
+			}
 		} else if position == -1 || tail {
 			usePosition = -1
 		} else {

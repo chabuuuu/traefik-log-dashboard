@@ -16,6 +16,7 @@ interface DashboardShellProps {
   agentName?: string | null;
   hideInternalTraffic?: boolean;
   onToggleHideInternalTraffic?: () => void;
+  onLoadRecent?: () => void;
   dedupeDebug?: {
     received: number;
     kept: number;
@@ -36,6 +37,7 @@ export function DashboardShell({
   agentName,
   hideInternalTraffic,
   onToggleHideInternalTraffic,
+  onLoadRecent,
   dedupeDebug,
 }: DashboardShellProps) {
   return (
@@ -53,6 +55,7 @@ export function DashboardShell({
           agentName={agentName}
           hideInternalTraffic={hideInternalTraffic}
           onToggleHideInternalTraffic={onToggleHideInternalTraffic}
+          onLoadRecent={onLoadRecent}
           dedupeDebug={dedupeDebug}
         />
         <div className="flex-1 overflow-auto p-4 md:p-6">

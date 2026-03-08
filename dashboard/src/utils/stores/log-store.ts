@@ -21,6 +21,7 @@ interface LogStoreState {
   agentName: string | null;
   isCatchingUp: boolean;
   isCached: boolean;
+  resetTrigger: number;
 }
 
 // ── Module-level state ──────────────────────────────────────────────
@@ -34,6 +35,7 @@ let state: LogStoreState = {
   agentName: null,
   isCatchingUp: false,
   isCached: false,
+  resetTrigger: 0,
 };
 
 let seenKeys: Set<string> = new Set();
@@ -195,6 +197,29 @@ export const logStore = {
     }
   },
 
+  /** Clear position for an agent (used by "Load recent" to force tail fetch). */
+  clearPosition(agentId: string): void {
+    positionMap.delete(agentId);
+    try {
+      sessionStorage.removeItem(getPositionStorageKey(agentId));
+    } catch {
+      // sessionStorage may be unavailable
+    }
+  },
+
+  /** Clear logs and seen keys (used by "Load recent" before re-fetching tail). */
+  clearLogs(): void {
+    seenKeys = new Set();
+    state = { ...state, logs: [], loading: true };
+    notify();
+  },
+
+  /** Request a reset (increments resetTrigger to cause useLogFetcher to re-initialize). */
+  requestReset(): void {
+    state = { ...state, resetTrigger: state.resetTrigger + 1 };
+    notify();
+  },
+
   // ── Agent switch ────────────────────────────────────────────────
   /** Clear all state for agent switch or reset. */
   clear(): void {
@@ -208,6 +233,7 @@ export const logStore = {
       agentName: null,
       isCatchingUp: false,
       isCached: false,
+      resetTrigger: state.resetTrigger,
     };
     seenKeys = new Set();
     notify();
