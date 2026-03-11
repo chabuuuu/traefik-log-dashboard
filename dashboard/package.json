@@ -5,7 +5,7 @@
   "description": "Real-time analytics dashboard for Traefik logs",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run build:server",
+    "build": "npm run type-check && vite build && npm run build:server",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "preview": "vite preview",

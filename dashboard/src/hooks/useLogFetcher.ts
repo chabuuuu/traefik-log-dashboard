@@ -105,6 +105,7 @@ export function useLogFetcher() {
     const processLogs = async (rawLogs: TraefikLog[]) => {
       if (!isMounted || rawLogs.length === 0) return;
 
+      const seenKeys = logStore.getSeenKeys();
       const uniqueLogs = dedupeLogs(rawLogs, seenKeys, maxSeenLogsRef.current, buildLogKey);
       const dropped = rawLogs.length - uniqueLogs.length;
       dedupeReceivedRef.current += rawLogs.length;
