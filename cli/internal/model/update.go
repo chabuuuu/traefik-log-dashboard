@@ -13,7 +13,7 @@ type tickMsg time.Time
 
 type dataMsg struct {
 	accessLogs  []logs.TraefikLog
-	errorLogs   []string
+	errorLogs   []logs.TraefikLog
 	metrics     *logs.Metrics
 	systemStats *logs.SystemStats
 }

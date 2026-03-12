@@ -20,28 +20,28 @@ const (
 
 // Model represents the application state
 type Model struct {
-	cfg             *config.Config
-	currentView     ViewMode
-	width           int
-	height          int
-	
+	cfg         *config.Config
+	currentView ViewMode
+	width       int
+	height      int
+
 	// Data
-	accessLogs      []logs.TraefikLog
-	errorLogs       []string
-	metrics         *logs.Metrics
-	systemStats     *logs.SystemStats
-	
+	accessLogs  []logs.TraefikLog
+	errorLogs   []logs.TraefikLog
+	metrics     *logs.Metrics
+	systemStats *logs.SystemStats
+
 	// State
-	loading         bool
-	err             error
-	lastUpdate      time.Time
-	selectedIndex   int
-	
+	loading       bool
+	err           error
+	lastUpdate    time.Time
+	selectedIndex int
+
 	// Navigation
-	activeTab       int
-	
+	activeTab int
+
 	// Flags
-	quitting        bool
+	quitting bool
 }
 
 // NewModel creates a new Model

@@ -10,14 +10,14 @@ import (
 )
 
 // accessResponse is the JSON envelope the agent returns for the access-logs
-// endpoint. Each element in Logs is a JSON-encoded TraefikLog string.
+// endpoint.
 type accessResponse struct {
-	Logs []string `json:"logs"`
+	Logs []TraefikLog `json:"logs"`
 }
 
 // errorResponse is the JSON envelope for the error-logs endpoint.
 type errorResponse struct {
-	Logs []string `json:"logs"`
+	Logs []TraefikLog `json:"logs"`
 }
 
 // mustMarshal marshals v to JSON or fails the test immediately.
@@ -43,13 +43,8 @@ func TestFetchAccessLogs_Success(t *testing.T) {
 		StartUTC:         "2024-01-01T10:00:00Z",
 	}
 
-	logLine, err := json.Marshal(wantLog)
-	if err != nil {
-		t.Fatalf("json.Marshal log entry: %v", err)
-	}
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := accessResponse{Logs: []string{string(logLine)}}
+		resp := accessResponse{Logs: []TraefikLog{wantLog}}
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(mustMarshal(t, resp)); err != nil {
 			t.Errorf("write response: %v", err)
@@ -89,7 +84,7 @@ func TestFetchAccessLogs_AuthHeader(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotHeader = r.Header.Get("Authorization")
-		resp := accessResponse{Logs: []string{}}
+		resp := accessResponse{Logs: []TraefikLog{}}
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(mustMarshal(t, resp)); err != nil {
 			t.Errorf("write response: %v", err)
@@ -114,7 +109,7 @@ func TestFetchAccessLogs_NoAuthHeader(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotHeader = r.Header.Get("Authorization")
-		resp := accessResponse{Logs: []string{}}
+		resp := accessResponse{Logs: []TraefikLog{}}
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(mustMarshal(t, resp)); err != nil {
 			t.Errorf("write response: %v", err)
@@ -148,14 +143,16 @@ func TestFetchAccessLogs_ServerError(t *testing.T) {
 	}
 }
 
-// TestFetchAccessLogs_SkipsEmptyLines verifies that empty strings in the Logs
-// slice are silently ignored rather than causing a parse error.
-func TestFetchAccessLogs_SkipsEmptyLines(t *testing.T) {
-	wantLog := TraefikLog{RequestMethod: "POST", DownstreamStatus: 201}
-	logLine, _ := json.Marshal(wantLog)
+// TestFetchAccessLogs_MultipleEntries verifies that multiple entries are
+// returned as-is from the endpoint payload.
+func TestFetchAccessLogs_MultipleEntries(t *testing.T) {
+	wantLogs := []TraefikLog{
+		{RequestMethod: "POST", DownstreamStatus: 201},
+		{RequestMethod: "GET", DownstreamStatus: 404},
+	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := accessResponse{Logs: []string{"", string(logLine), ""}}
+		resp := accessResponse{Logs: wantLogs}
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(mustMarshal(t, resp)); err != nil {
 			t.Errorf("write response: %v", err)
@@ -167,22 +164,34 @@ func TestFetchAccessLogs_SkipsEmptyLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchAccessLogs: unexpected error: %v", err)
 	}
-	if len(got) != 1 {
-		t.Errorf("got %d logs, want 1", len(got))
+	if len(got) != len(wantLogs) {
+		t.Errorf("got %d logs, want %d", len(got), len(wantLogs))
 	}
 }
 
 // --- FetchErrorLogs tests ---
 
-// TestFetchErrorLogs_Success verifies that error log lines are returned as-is.
+// TestFetchErrorLogs_Success verifies that structured error logs are returned.
 func TestFetchErrorLogs_Success(t *testing.T) {
-	wantLines := []string{
-		"2024-01-01T10:00:00Z ERROR something went wrong",
-		"2024-01-01T10:01:00Z WARN high memory usage",
+	wantLogs := []TraefikLog{
+		{
+			StartUTC:         "2024-01-01T10:00:00Z",
+			RequestMethod:    "GET",
+			RequestPath:      "/api/orders",
+			DownstreamStatus: 500,
+			ClientHost:       "10.0.0.1",
+		},
+		{
+			StartUTC:         "2024-01-01T10:01:00Z",
+			RequestMethod:    "POST",
+			RequestPath:      "/api/users",
+			DownstreamStatus: 502,
+			ClientHost:       "10.0.0.2",
+		},
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := errorResponse{Logs: wantLines}
+		resp := errorResponse{Logs: wantLogs}
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(mustMarshal(t, resp)); err != nil {
 			t.Errorf("write response: %v", err)
@@ -194,12 +203,25 @@ func TestFetchErrorLogs_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchErrorLogs: unexpected error: %v", err)
 	}
-	if len(got) != len(wantLines) {
-		t.Fatalf("got %d lines, want %d", len(got), len(wantLines))
+	if len(got) != len(wantLogs) {
+		t.Fatalf("got %d logs, want %d", len(got), len(wantLogs))
 	}
-	for i, line := range wantLines {
-		if got[i] != line {
-			t.Errorf("line[%d]: got %q, want %q", i, got[i], line)
+	for i := range wantLogs {
+		if got[i].DownstreamStatus != wantLogs[i].DownstreamStatus {
+			t.Errorf(
+				"log[%d].DownstreamStatus: got %d, want %d",
+				i,
+				got[i].DownstreamStatus,
+				wantLogs[i].DownstreamStatus,
+			)
+		}
+		if got[i].RequestPath != wantLogs[i].RequestPath {
+			t.Errorf(
+				"log[%d].RequestPath: got %q, want %q",
+				i,
+				got[i].RequestPath,
+				wantLogs[i].RequestPath,
+			)
 		}
 	}
 }
