@@ -167,10 +167,28 @@ Open http://localhost:3000 in your browser.
 | `SHOW_DEMO_PAGE` | Show demo mode link | `true` |
 | `GEOIP_LOOKUP_ENABLED` | Enable dashboard GeoIP lookup API | `true` |
 | `GEOIP_PROVIDER_BASE_URL` | GeoIP provider base URL | `https://ipwho.is` |
+| `GEOIP_PROVIDER_URLS` | Comma-separated GeoIP provider fallback list | Uses `GEOIP_PROVIDER_BASE_URL` |
+| `GEOIP_LOCAL_DB_PATH` | Optional local MaxMind MMDB path | `""` (disabled) |
+| `GEOIP_UNKNOWN_CACHE_TTL_MS` | Cache TTL for unresolved lookups | `300000` |
 
 Legacy fallback (still supported): `AGENT_API_URL`, `AGENT_API_TOKEN`, `AGENT_NAME`.
 
-> **Note**: GeoIP is automatically handled by the dashboard using [geolite2-redist](https://www.npmjs.com/package/geolite2-redist). No configuration needed.
+> **GeoIP mode**: The dashboard uses a hybrid resolver chain:
+> 1) Optional local MMDB (`GEOIP_LOCAL_DB_PATH`)
+> 2) HTTP provider fallback (`GEOIP_PROVIDER_URLS` / `GEOIP_PROVIDER_BASE_URL`)
+
+Example production GeoIP configuration:
+
+```yaml
+services:
+  traefik-dashboard:
+    volumes:
+      - ./data/geoip:/geoip:ro
+    environment:
+      - GEOIP_LOCAL_DB_PATH=/geoip/GeoLite2-City.mmdb
+      - GEOIP_PROVIDER_URLS=https://ipwho.is,https://ip-api.com/json
+      - GEOIP_UNKNOWN_CACHE_TTL_MS=300000
+```
 
 ---
 

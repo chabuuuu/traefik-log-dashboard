@@ -72,11 +72,14 @@ Geographic lookup is handled by the dashboard `/api/location/*` service.
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `GEOIP_LOOKUP_ENABLED` | Enable/disable GeoIP lookup service | `true` | No |
+| `GEOIP_LOCAL_DB_PATH` | Optional local GeoLite2/MaxMind MMDB path (country or city DB) | `""` | No |
 | `GEOIP_PROVIDER_BASE_URL` | Geo provider base URL | `https://ipwho.is` | No |
+| `GEOIP_PROVIDER_URLS` | Comma-separated provider list for ordered HTTP fallback | Uses `GEOIP_PROVIDER_BASE_URL` | No |
 | `GEOIP_LOOKUP_TIMEOUT_MS` | Lookup timeout (ms) | `3500` | No |
 | `GEOIP_LOOKUP_MAX_IPS` | Max IPs per lookup request | `256` | No |
 | `GEOIP_LOOKUP_CONCURRENCY` | Parallel lookups per request | `10` | No |
 | `GEOIP_LOOKUP_CACHE_TTL_MS` | Cache TTL (ms) | `3600000` | No |
+| `GEOIP_UNKNOWN_CACHE_TTL_MS` | Cache TTL for unresolved (`Unknown`) lookups | `300000` | No |
 | `GEOIP_LOOKUP_CACHE_MAX_ENTRIES` | Max cache entries | `10000` | No |
 
 ### Server Configuration
@@ -126,7 +129,10 @@ environment:
   - DASHBOARD_INTERNAL_NOISE_SERVICE_PATTERNS=dashboard,agent,traefik-log-dashboard,log-dashboard
   - SHOW_DEMO_PAGE=true
   - GEOIP_LOOKUP_ENABLED=true
+  - GEOIP_LOCAL_DB_PATH=/geoip/GeoLite2-City.mmdb
+  - GEOIP_PROVIDER_URLS=https://ipwho.is,https://ip-api.com/json
   - GEOIP_PROVIDER_BASE_URL=https://ipwho.is
+  - GEOIP_UNKNOWN_CACHE_TTL_MS=300000
 
   # Server
   - NODE_ENV=production

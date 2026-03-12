@@ -9,25 +9,24 @@
  */
 export function isPrivateIP(ip: string): boolean {
   if (!ip) return true;
-  
-  // IPv4 private ranges
+
+  // 172.16.0.0/12 requires second octet precision.
+  if (ip.startsWith('172.')) {
+    const parts = ip.split('.');
+    if (parts.length === 4) {
+      const second = parseInt(parts[1], 10);
+      return Number.isFinite(second) && second >= 16 && second <= 31;
+    }
+    return false;
+  }
+
+  // Other IPv4 private ranges
   if (
     ip.startsWith('10.') ||
-    ip.startsWith('172.') ||
     ip.startsWith('192.168.') ||
     ip.startsWith('127.') ||
     ip === 'localhost'
   ) {
-    // Check 172.16.0.0/12 range more precisely
-    if (ip.startsWith('172.')) {
-      const parts = ip.split('.');
-      if (parts.length === 4) {
-        const second = parseInt(parts[1], 10);
-        if (second >= 16 && second <= 31) {
-          return true;
-        }
-      }
-    }
     return true;
   }
   

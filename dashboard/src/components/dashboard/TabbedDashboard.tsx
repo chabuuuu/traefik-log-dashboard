@@ -49,6 +49,10 @@ function SectionSkeleton() {
 
 interface TabbedDashboardProps {
   logs: TraefikLog[];
+  totalLogs: number;
+  filteredCount: number;
+  hideInternalTraffic: boolean;
+  onShowInternalTraffic?: () => void;
   demoMode?: boolean;
   agentId?: string;
   agentName?: string;
@@ -56,12 +60,20 @@ interface TabbedDashboardProps {
 
 export default function TabbedDashboard({
   logs,
+  totalLogs,
+  filteredCount,
+  hideInternalTraffic,
+  onShowInternalTraffic,
   demoMode = false,
   agentId,
   agentName,
 }: TabbedDashboardProps) {
   const { config } = useConfig();
-  const { geoLocations, isLoadingGeo } = useGeoLocation(logs);
+  const { geoLocations, isLoadingGeo, diagnostic } = useGeoLocation(logs, {
+    totalLogs,
+    filteredCount,
+    hideInternalTraffic,
+  });
   const systemStats = useSystemStats(demoMode);
   const {
     status: agentStatus,
@@ -134,7 +146,13 @@ export default function TabbedDashboard({
 
         <TabsContent value="geography" className="mt-6">
           <Suspense fallback={<SectionSkeleton />}>
-            <GeographySection locations={metrics.geoLocations} isLoading={isLoadingGeo} />
+            <GeographySection
+              locations={metrics.geoLocations}
+              isLoading={isLoadingGeo}
+              diagnostic={diagnostic}
+              hideInternalTraffic={hideInternalTraffic}
+              onShowInternalTraffic={onShowInternalTraffic}
+            />
           </Suspense>
         </TabsContent>
 

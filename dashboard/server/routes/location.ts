@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 import net from 'net';
 import https from 'https';
 import http from 'http';
+import fs from 'fs';
 
 interface LocationLookupRequestBody {
   ips?: unknown;
@@ -23,11 +24,51 @@ interface GeoLocationCacheEntry {
 
 interface IPWhoIsResponse {
   success?: boolean;
+  status?: string;
   country?: string;
   country_code?: string;
+  countryCode?: string;
+  country_name?: string;
   city?: string;
   latitude?: number;
   longitude?: number;
+  lat?: number;
+  lon?: number;
+}
+
+interface LocalMMDBPayload {
+  country?: {
+    iso_code?: string;
+    names?: {
+      en?: string;
+    };
+  };
+  city?: {
+    names?: {
+      en?: string;
+    };
+  };
+  location?: {
+    latitude?: number;
+    longitude?: number;
+  };
+}
+
+interface LocalMMDBReader {
+  get(ipAddress: string): LocalMMDBPayload | null;
+}
+
+interface MaxMindModule {
+  openSync?: (databasePath: string) => LocalMMDBReader;
+}
+
+export interface GeoProviderState {
+  baseUrl: string;
+  consecutiveFailures: number;
+  successCount: number;
+  failureCount: number;
+  cooldownUntil: number;
+  lastError: string | null;
 }
 
 const router = Router();
@@ -35,6 +76,9 @@ const router = Router();
 const DEFAULT_PROVIDER_BASE_URL = 'https://ipwho.is';
 const UNKNOWN_COUNTRY = 'Unknown';
 const PRIVATE_COUNTRY = 'Private';
+const PROVIDER_COOLDOWN_MS = 5 * 60 * 1000;
+const PROVIDER_FAILURE_THRESHOLD = 2;
+const LOOKUP_USER_AGENT = 'traefik-log-dashboard/2.5 (+https://github.com/hhftechnology/traefik-log-dashboard)';
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
   const value = process.env[name];
@@ -55,17 +99,72 @@ function parseIntEnv(input: { name: string; fallback: number; min: number; max: 
   return parsed;
 }
 
+export function parseProviderBaseURLs(input: {
+  providerURLsValue?: string;
+  providerBaseURLValue?: string;
+  fallback: string;
+}): string[] {
+  const fromList = (input.providerURLsValue || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const rawURLs = fromList.length > 0
+    ? fromList
+    : [(input.providerBaseURLValue || input.fallback).trim()];
+
+  const uniqueURLs = new Set<string>();
+  for (const rawURL of rawURLs) {
+    const normalized = rawURL.replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(normalized)) {
+      continue;
+    }
+    uniqueURLs.add(normalized);
+  }
+
+  if (uniqueURLs.size === 0) {
+    const normalizedFallback = input.fallback.replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(normalizedFallback)) {
+      uniqueURLs.add(normalizedFallback);
+    }
+  }
+
+  return [...uniqueURLs];
+}
+
 const locationLookupConfig = {
   enabled: parseBooleanEnv('GEOIP_LOOKUP_ENABLED', true),
   providerBaseUrl: (process.env.GEOIP_PROVIDER_BASE_URL || DEFAULT_PROVIDER_BASE_URL).replace(/\/+$/, ''),
+  providerBaseUrls: parseProviderBaseURLs({
+    providerURLsValue: process.env.GEOIP_PROVIDER_URLS,
+    providerBaseURLValue: process.env.GEOIP_PROVIDER_BASE_URL,
+    fallback: DEFAULT_PROVIDER_BASE_URL,
+  }),
+  localDBPath: (process.env.GEOIP_LOCAL_DB_PATH || '').trim(),
   timeoutMs: parseIntEnv({ name: 'GEOIP_LOOKUP_TIMEOUT_MS', fallback: 3500, min: 250, max: 15000 }),
   maxIpsPerRequest: parseIntEnv({ name: 'GEOIP_LOOKUP_MAX_IPS', fallback: 256, min: 1, max: 2000 }),
   maxConcurrentLookups: parseIntEnv({ name: 'GEOIP_LOOKUP_CONCURRENCY', fallback: 10, min: 1, max: 64 }),
   cacheTTLMS: parseIntEnv({ name: 'GEOIP_LOOKUP_CACHE_TTL_MS', fallback: 60 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }),
+  unknownCacheTTLMS: parseIntEnv({ name: 'GEOIP_UNKNOWN_CACHE_TTL_MS', fallback: 5 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }),
   maxCacheEntries: parseIntEnv({ name: 'GEOIP_LOOKUP_CACHE_MAX_ENTRIES', fallback: 10000, min: 100, max: 200000 }),
 } as const;
 
 const locationCache = new Map<string, GeoLocationCacheEntry>();
+export function createProviderState(baseUrl: string): GeoProviderState {
+  return {
+    baseUrl,
+    consecutiveFailures: 0,
+    successCount: 0,
+    failureCount: 0,
+    cooldownUntil: 0,
+    lastError: null,
+  };
+}
+
+const providerStates: GeoProviderState[] = locationLookupConfig.providerBaseUrls.map(createProviderState);
+let localMMDBReader: LocalMMDBReader | null = null;
+let localDBLoaded = false;
+let localDBError: string | null = null;
 
 function createUnknownLocation(ipAddress: string): GeoLocationLookup {
   return { ipAddress, country: UNKNOWN_COUNTRY };
@@ -126,12 +225,120 @@ function getCachedLocation(ipAddress: string, now: number): GeoLocationLookup | 
 }
 
 function setCachedLocation(ipAddress: string, value: GeoLocationLookup, now: number): void {
+  const ttl = getCacheTTLForLocation(value);
   locationCache.set(ipAddress, {
     value,
     updatedAt: now,
-    expiresAt: now + locationLookupConfig.cacheTTLMS,
+    expiresAt: now + ttl,
   });
   pruneOversizedCacheEntries();
+}
+
+export function getCacheTTLForLocation(value: GeoLocationLookup): number {
+  if (value.country === UNKNOWN_COUNTRY) {
+    return locationLookupConfig.unknownCacheTTLMS;
+  }
+  return locationLookupConfig.cacheTTLMS;
+}
+
+function parseLocalMMDBPayload(payload: LocalMMDBPayload, ipAddress: string): GeoLocationLookup | null {
+  const countryCode = getTrimmedString(payload.country?.iso_code);
+  const countryName = getTrimmedString(payload.country?.names?.en);
+  const country = countryCode?.toUpperCase() || countryName || UNKNOWN_COUNTRY;
+  if (country === UNKNOWN_COUNTRY) {
+    return null;
+  }
+
+  const city = getTrimmedString(payload.city?.names?.en);
+  const latitude = isFiniteNumber(payload.location?.latitude) ? payload.location?.latitude : undefined;
+  const longitude = isFiniteNumber(payload.location?.longitude) ? payload.location?.longitude : undefined;
+
+  return {
+    ipAddress,
+    country,
+    city,
+    latitude,
+    longitude,
+  };
+}
+
+function initializeLocalMMDBResolver(): void {
+  if (!locationLookupConfig.localDBPath) {
+    localDBLoaded = false;
+    localDBError = null;
+    return;
+  }
+
+  if (!fs.existsSync(locationLookupConfig.localDBPath)) {
+    localDBLoaded = false;
+    localDBError = `Local GeoIP DB not found at ${locationLookupConfig.localDBPath}`;
+    console.warn(`[location] ${localDBError}`);
+    return;
+  }
+
+  try {
+    // Optional dependency: dashboard can run without local MMDB support.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const maxmind = require('maxmind') as MaxMindModule;
+    if (typeof maxmind.openSync !== 'function') {
+      throw new Error('maxmind.openSync is unavailable');
+    }
+
+    localMMDBReader = maxmind.openSync(locationLookupConfig.localDBPath);
+    localDBLoaded = true;
+    localDBError = null;
+    console.log(`[location] local MMDB loaded: ${locationLookupConfig.localDBPath}`);
+  } catch (error) {
+    localMMDBReader = null;
+    localDBLoaded = false;
+    localDBError = error instanceof Error ? error.message : String(error);
+    console.warn('[location] failed to initialize local MMDB resolver:', localDBError);
+  }
+}
+
+function lookupLocationByLocalMMDB(ipAddress: string): GeoLocationLookup | null {
+  if (!localDBLoaded || !localMMDBReader) {
+    return null;
+  }
+
+  try {
+    const payload = localMMDBReader.get(ipAddress);
+    if (!payload) {
+      return null;
+    }
+    return parseLocalMMDBPayload(payload, ipAddress);
+  } catch (error) {
+    localDBError = error instanceof Error ? error.message : String(error);
+    console.warn(`[location] local MMDB lookup failed for ${ipAddress}: ${localDBError}`);
+    return null;
+  }
+}
+
+export function isProviderInCooldown(provider: GeoProviderState, now: number): boolean {
+  return provider.cooldownUntil > now;
+}
+
+export function markProviderSuccess(provider: GeoProviderState): void {
+  provider.successCount += 1;
+  provider.consecutiveFailures = 0;
+  provider.cooldownUntil = 0;
+  provider.lastError = null;
+}
+
+export function markProviderFailure(provider: GeoProviderState, input: { statusCode?: number; reason: string; now: number }): void {
+  provider.failureCount += 1;
+  provider.consecutiveFailures += 1;
+  provider.lastError = input.reason;
+
+  const shouldTriggerCircuit =
+    input.statusCode === undefined ||
+    input.statusCode === 403 ||
+    input.statusCode === 429 ||
+    input.statusCode >= 500;
+
+  if (shouldTriggerCircuit && provider.consecutiveFailures >= PROVIDER_FAILURE_THRESHOLD) {
+    provider.cooldownUntil = input.now + PROVIDER_COOLDOWN_MS;
+  }
 }
 
 export function normalizeIPAddress(input: string): string | null {
@@ -190,7 +397,13 @@ export function isPrivateIPAddress(ipAddress: string): boolean {
 function lookupWithNodeHttp(url: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http;
-    const req = client.get(url, { headers: { Accept: 'application/json' }, timeout: timeoutMs }, (res) => {
+    const req = client.get(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': LOOKUP_USER_AGENT,
+      },
+      timeout: timeoutMs,
+    }, (res) => {
       if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
         res.resume();
         reject(new Error(`HTTP ${res.statusCode}`));
@@ -207,64 +420,118 @@ function lookupWithNodeHttp(url: string, timeoutMs: number): Promise<string> {
 }
 
 function parseProviderPayload(payload: IPWhoIsResponse, ipAddress: string): GeoLocationLookup {
-  if (payload.success === false) {
+  if (payload.success === false || payload.status === 'fail') {
     return createUnknownLocation(ipAddress);
   }
 
-  const countryCode = getTrimmedString(payload.country_code);
-  const countryName = getTrimmedString(payload.country);
+  const countryCode = getTrimmedString(payload.country_code || payload.countryCode);
+  const countryName = getTrimmedString(payload.country || payload.country_name);
   const country = countryCode?.toUpperCase() || countryName || UNKNOWN_COUNTRY;
   const city = getTrimmedString(payload.city);
+  const latitude = payload.latitude ?? payload.lat;
+  const longitude = payload.longitude ?? payload.lon;
 
   return {
     ipAddress,
     country,
     city,
-    latitude: isFiniteNumber(payload.latitude) ? payload.latitude : undefined,
-    longitude: isFiniteNumber(payload.longitude) ? payload.longitude : undefined,
+    latitude: isFiniteNumber(latitude) ? latitude : undefined,
+    longitude: isFiniteNumber(longitude) ? longitude : undefined,
   };
 }
 
-async function lookupLocationByProvider(ipAddress: string): Promise<GeoLocationLookup> {
-  if (!locationLookupConfig.enabled || !locationLookupConfig.providerBaseUrl) {
-    return createUnknownLocation(ipAddress);
+async function lookupLocationByProvider(ipAddress: string, provider: GeoProviderState): Promise<GeoLocationLookup | null> {
+  if (!locationLookupConfig.enabled || !provider.baseUrl) {
+    return null;
   }
 
-  const lookupUrl = `${locationLookupConfig.providerBaseUrl}/${encodeURIComponent(ipAddress)}`;
+  const now = Date.now();
+  if (isProviderInCooldown(provider, now)) {
+    return null;
+  }
 
-  // Try fetch() first
+  const lookupURL = `${provider.baseUrl}/${encodeURIComponent(ipAddress)}`;
+
   const controller = new AbortController();
   const timeoutID = setTimeout(() => controller.abort(), locationLookupConfig.timeoutMs);
 
   try {
-    const response = await fetch(lookupUrl, {
+    const response = await fetch(lookupURL, {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': LOOKUP_USER_AGENT,
+      },
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      console.warn(`[location] fetch returned HTTP ${response.status} for ${ipAddress}`);
-      return createUnknownLocation(ipAddress);
+      const reason = `HTTP ${response.status}`;
+      markProviderFailure(provider, { statusCode: response.status, reason, now: Date.now() });
+      console.warn(`[location] provider=${provider.baseUrl} fetch returned HTTP ${response.status} for ${ipAddress}`);
+      return null;
     }
 
     const payload = (await response.json()) as IPWhoIsResponse;
-    return parseProviderPayload(payload, ipAddress);
+    const parsed = parseProviderPayload(payload, ipAddress);
+    markProviderSuccess(provider);
+    return parsed;
   } catch (fetchErr) {
-    console.warn(`[location] fetch failed for ${ipAddress}: ${fetchErr instanceof Error ? fetchErr.message : fetchErr}, trying node http fallback`);
+    const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    console.warn(`[location] provider=${provider.baseUrl} fetch failed for ${ipAddress}: ${message}, trying node http fallback`);
   } finally {
     clearTimeout(timeoutID);
   }
 
-  // Fallback to Node.js built-in http/https module
   try {
-    const body = await lookupWithNodeHttp(lookupUrl, locationLookupConfig.timeoutMs);
+    const body = await lookupWithNodeHttp(lookupURL, locationLookupConfig.timeoutMs);
     const payload = JSON.parse(body) as IPWhoIsResponse;
-    return parseProviderPayload(payload, ipAddress);
+    const parsed = parseProviderPayload(payload, ipAddress);
+    markProviderSuccess(provider);
+    return parsed;
   } catch (httpErr) {
-    console.error(`[location] http fallback also failed for ${ipAddress}:`, httpErr instanceof Error ? httpErr.message : httpErr);
+    const message = httpErr instanceof Error ? httpErr.message : String(httpErr);
+    markProviderFailure(provider, { reason: message, now: Date.now() });
+    console.error(`[location] provider=${provider.baseUrl} http fallback failed for ${ipAddress}: ${message}`);
+    return null;
+  }
+}
+
+async function lookupLocationByProviders(ipAddress: string): Promise<GeoLocationLookup> {
+  if (!locationLookupConfig.enabled || providerStates.length === 0) {
     return createUnknownLocation(ipAddress);
   }
+
+  let bestUnknown: GeoLocationLookup | null = null;
+  for (const provider of providerStates) {
+    const resolved = await lookupLocationByProvider(ipAddress, provider);
+    if (!resolved) {
+      continue;
+    }
+
+    if (resolved.country !== UNKNOWN_COUNTRY) {
+      return resolved;
+    }
+
+    if (!bestUnknown) {
+      bestUnknown = resolved;
+    }
+  }
+
+  return bestUnknown ?? createUnknownLocation(ipAddress);
+}
+
+async function resolveLocation(ipAddress: string): Promise<GeoLocationLookup> {
+  if (!locationLookupConfig.enabled) {
+    return createUnknownLocation(ipAddress);
+  }
+
+  const local = lookupLocationByLocalMMDB(ipAddress);
+  if (local && local.country !== UNKNOWN_COUNTRY) {
+    return local;
+  }
+
+  return lookupLocationByProviders(ipAddress);
 }
 
 async function mapWithConcurrency<T, R>(
@@ -293,16 +560,35 @@ async function mapWithConcurrency<T, R>(
 }
 
 router.get('/status', (_req: Request, res: Response) => {
-  pruneExpiredCacheEntries(Date.now());
+  const now = Date.now();
+  pruneExpiredCacheEntries(now);
+
+  const providers = providerStates.map((provider) => ({
+    base_url: provider.baseUrl,
+    available: !isProviderInCooldown(provider, now),
+    cooldown_until: provider.cooldownUntil > now ? provider.cooldownUntil : null,
+    last_error: provider.lastError,
+    consecutive_failures: provider.consecutiveFailures,
+    success_count: provider.successCount,
+    failure_count: provider.failureCount,
+  }));
+
+  const providerAvailable = providers.some((provider) => provider.available);
 
   res.json({
     enabled: locationLookupConfig.enabled,
-    available: locationLookupConfig.enabled,
+    available: locationLookupConfig.enabled && (localDBLoaded || providerAvailable),
     provider: locationLookupConfig.providerBaseUrl || null,
+    providers,
+    provider_available: providerAvailable,
+    local_db_path: locationLookupConfig.localDBPath || null,
+    local_db_loaded: localDBLoaded,
+    local_db_error: localDBError,
     timeout_ms: locationLookupConfig.timeoutMs,
     max_ips_per_request: locationLookupConfig.maxIpsPerRequest,
     max_concurrent_lookups: locationLookupConfig.maxConcurrentLookups,
     cache_ttl_ms: locationLookupConfig.cacheTTLMS,
+    unknown_cache_ttl_ms: locationLookupConfig.unknownCacheTTLMS,
     cache_entries: locationCache.size,
     max_cache_entries: locationLookupConfig.maxCacheEntries,
   });
@@ -362,7 +648,7 @@ router.post('/lookup', async (req: Request, res: Response) => {
         return cached;
       }
 
-      const resolved = await lookupLocationByProvider(ipAddress);
+      const resolved = await resolveLocation(ipAddress);
       setCachedLocation(ipAddress, resolved, Date.now());
       return resolved;
     },
@@ -375,10 +661,16 @@ router.post('/lookup', async (req: Request, res: Response) => {
 });
 
 // Startup connectivity check
-if (locationLookupConfig.enabled) {
-  lookupLocationByProvider('8.8.8.8')
-    .then((r) => console.log(`[location] provider check: ${r.country !== UNKNOWN_COUNTRY ? 'OK' : 'FAILED'} (country=${r.country})`))
-    .catch((e) => console.error('[location] provider check failed:', e instanceof Error ? e.message : e));
+initializeLocalMMDBResolver();
+
+if (locationLookupConfig.enabled && process.env.NODE_ENV !== 'test') {
+  lookupLocationByProviders('8.8.8.8')
+    .then((result) => {
+      console.log(`[location] provider check: ${result.country !== UNKNOWN_COUNTRY ? 'OK' : 'FAILED'} (country=${result.country})`);
+    })
+    .catch((error) => {
+      console.error('[location] provider check failed:', error instanceof Error ? error.message : error);
+    });
 }
 
 export default router;

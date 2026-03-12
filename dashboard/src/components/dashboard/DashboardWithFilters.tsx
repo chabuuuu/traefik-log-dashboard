@@ -20,7 +20,7 @@ interface DashboardWithFiltersProps {
 }
 
 export default function DashboardWithFilters({ logs, demoMode = false, agentId, agentName }: DashboardWithFiltersProps) {
-  const { settings } = useFilters();
+  const { settings, updateSettings } = useFilters();
   const { config } = useConfig();
 
   // Apply filters to logs
@@ -88,7 +88,16 @@ export default function DashboardWithFilters({ logs, demoMode = false, agentId, 
       )}
 
       {/* Main Dashboard */}
-      <TabbedDashboard logs={filteredLogs} demoMode={demoMode} agentId={agentId} agentName={agentName} />
+      <TabbedDashboard
+        logs={filteredLogs}
+        totalLogs={logs.length}
+        filteredCount={filteredCount}
+        hideInternalTraffic={settings.hideInternalTraffic}
+        onShowInternalTraffic={() => updateSettings({ hideInternalTraffic: false })}
+        demoMode={demoMode}
+        agentId={agentId}
+        agentName={agentName}
+      />
     </>
   );
 }

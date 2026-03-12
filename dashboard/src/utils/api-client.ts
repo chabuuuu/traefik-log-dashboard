@@ -309,8 +309,20 @@ export class APIClient {
   async getLocationStatus(): Promise<{
     enabled: boolean;
     available: boolean;
-    city_db: string;
-    country_db: string;
+    provider?: string | null;
+    provider_available?: boolean;
+    local_db_path?: string | null;
+    local_db_loaded?: boolean;
+    local_db_error?: string | null;
+    providers?: Array<{
+      base_url: string;
+      available: boolean;
+      cooldown_until: number | null;
+      last_error: string | null;
+      consecutive_failures: number;
+      success_count: number;
+      failure_count: number;
+    }>;
   }> {
     return this.fetchJSON({
       endpoint: '/api/location/status',

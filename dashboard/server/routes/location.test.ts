@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isPrivateIPAddress, normalizeIPAddress } from './location';
+import {
+  createProviderState,
+  getCacheTTLForLocation,
+  isPrivateIPAddress,
+  isProviderInCooldown,
+  markProviderFailure,
+  markProviderSuccess,
+  normalizeIPAddress,
+  parseProviderBaseURLs,
+} from './location';
 
 describe('normalizeIPAddress', () => {
   it('normalizes raw IPv4 values', () => {
@@ -44,5 +53,69 @@ describe('isPrivateIPAddress', () => {
     expect(isPrivateIPAddress('8.8.8.8')).toBe(false);
     expect(isPrivateIPAddress('1.1.1.1')).toBe(false);
     expect(isPrivateIPAddress('2001:4860:4860::8888')).toBe(false);
+  });
+});
+
+describe('parseProviderBaseURLs', () => {
+  it('uses GEOIP_PROVIDER_URLS when provided and preserves order', () => {
+    const parsed = parseProviderBaseURLs({
+      providerURLsValue: ' https://one.example ,https://two.example/ ',
+      providerBaseURLValue: 'https://legacy.example',
+      fallback: 'https://fallback.example',
+    });
+
+    expect(parsed).toEqual(['https://one.example', 'https://two.example']);
+  });
+
+  it('falls back to legacy provider env when provider list is missing', () => {
+    const parsed = parseProviderBaseURLs({
+      providerBaseURLValue: 'https://legacy.example/',
+      fallback: 'https://fallback.example',
+    });
+
+    expect(parsed).toEqual(['https://legacy.example']);
+  });
+});
+
+describe('getCacheTTLForLocation', () => {
+  it('assigns shorter ttl for unknown countries', () => {
+    const unknownTTL = getCacheTTLForLocation({
+      ipAddress: '8.8.8.8',
+      country: 'Unknown',
+    });
+
+    const successTTL = getCacheTTLForLocation({
+      ipAddress: '8.8.8.8',
+      country: 'US',
+      city: 'Mountain View',
+    });
+
+    expect(unknownTTL).toBeLessThan(successTTL);
+  });
+});
+
+describe('provider circuit state', () => {
+  it('enters cooldown after repeated provider failures', () => {
+    const provider = createProviderState('https://ipwho.is');
+    const now = Date.now();
+
+    markProviderFailure(provider, { statusCode: 403, reason: 'HTTP 403', now });
+    expect(isProviderInCooldown(provider, now)).toBe(false);
+
+    markProviderFailure(provider, { statusCode: 403, reason: 'HTTP 403', now });
+    expect(isProviderInCooldown(provider, now)).toBe(true);
+  });
+
+  it('clears cooldown and failure streak after success', () => {
+    const provider = createProviderState('https://ipwho.is');
+    const now = Date.now();
+
+    markProviderFailure(provider, { statusCode: 429, reason: 'HTTP 429', now });
+    markProviderFailure(provider, { statusCode: 429, reason: 'HTTP 429', now });
+    expect(isProviderInCooldown(provider, now)).toBe(true);
+
+    markProviderSuccess(provider);
+    expect(provider.consecutiveFailures).toBe(0);
+    expect(isProviderInCooldown(provider, Date.now())).toBe(false);
   });
 });

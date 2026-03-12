@@ -25,7 +25,7 @@ Real-time analytics and monitoring dashboard for Traefik reverse proxy logs buil
 - **UI**: React 19, Tailwind CSS
 - **Charts**: Recharts, D3.js
 - **Database**: SQLite (better-sqlite3)
-- **GeoIP**: MaxMind GeoLite2 via geolite2-redist
+- **GeoIP**: Hybrid resolver (optional local MMDB + HTTP provider fallback)
 - **Icons**: Lucide React
 - **Language**: TypeScript
 
@@ -103,9 +103,9 @@ docker run -p 3000:3000 \
 
 The dashboard includes automatic GeoIP functionality:
 
-- Uses [geolite2-redist](https://www.npmjs.com/package/geolite2-redist) which auto-downloads MaxMind databases
-- No configuration required - works out of the box
-- Optional: Set `GEOIP_DB_PATH` to use a custom database location
+- Optional local MMDB lookup via `GEOIP_LOCAL_DB_PATH`
+- HTTP fallback providers via `GEOIP_PROVIDER_URLS` (or `GEOIP_PROVIDER_BASE_URL`)
+- No local DB required for basic functionality
 
 ## API Endpoints
 

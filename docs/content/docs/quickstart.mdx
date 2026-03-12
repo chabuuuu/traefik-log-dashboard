@@ -157,9 +157,12 @@ traefik-agent-staging:
 
 ## GeoIP (Geographic Location)
 
-Geographic IP lookup is automatically enabled in the dashboard. The dashboard uses [geolite2-redist](https://www.npmjs.com/package/geolite2-redist) which auto-downloads MaxMind GeoLite2 databases.
+Geographic IP lookup is enabled in the dashboard using a hybrid resolver:
 
-No additional configuration is required for GeoIP functionality.
+- Optional local MaxMind MMDB (`GEOIP_LOCAL_DB_PATH`)
+- HTTP provider fallback (`GEOIP_PROVIDER_URLS` or `GEOIP_PROVIDER_BASE_URL`)
+
+No extra setup is required for HTTP-only mode. For higher reliability, mount a local MMDB file and set `GEOIP_LOCAL_DB_PATH`.
 
 ## Next Steps
 
