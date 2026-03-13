@@ -13,6 +13,8 @@ npm run dev
 
 Open http://localhost:3000 to view the documentation.
 
+Set `SITE_URL` in your environment for canonical URLs, Open Graph metadata, and sitemap host values in production.
+
 ### Production Build
 
 ```bash
@@ -89,6 +91,8 @@ icon: Home
 - Mermaid diagrams
 - Syntax highlighting
 - Auto-generated navigation
+- SEO metadata defaults with canonical URLs
+- Auto-generated `sitemap.xml` and `robots.txt`
 
 ##  Deployment
 
