@@ -59,7 +59,7 @@ interface LocalMMDBReader {
 }
 
 interface MaxMindModule {
-  openSync?: (databasePath: string) => LocalMMDBReader;
+  open?: (databasePath: string) => Promise<LocalMMDBReader>;
 }
 
 export interface GeoProviderState {
@@ -165,6 +165,7 @@ const providerStates: GeoProviderState[] = locationLookupConfig.providerBaseUrls
 let localMMDBReader: LocalMMDBReader | null = null;
 let localDBLoaded = false;
 let localDBError: string | null = null;
+let localMMDBInitPromise: Promise<void> | null = null;
 
 function createUnknownLocation(ipAddress: string): GeoLocationLookup {
   return { ipAddress, country: UNKNOWN_COUNTRY };
@@ -262,38 +263,46 @@ function parseLocalMMDBPayload(payload: LocalMMDBPayload, ipAddress: string): Ge
   };
 }
 
-function initializeLocalMMDBResolver(): void {
-  if (!locationLookupConfig.localDBPath) {
-    localDBLoaded = false;
-    localDBError = null;
-    return;
+function initializeLocalMMDBResolver(): Promise<void> {
+  if (localMMDBInitPromise) {
+    return localMMDBInitPromise;
   }
 
-  if (!fs.existsSync(locationLookupConfig.localDBPath)) {
-    localDBLoaded = false;
-    localDBError = `Local GeoIP DB not found at ${locationLookupConfig.localDBPath}`;
-    console.warn(`[location] ${localDBError}`);
-    return;
-  }
-
-  try {
-    // Optional dependency: dashboard can run without local MMDB support.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const maxmind = require('maxmind') as MaxMindModule;
-    if (typeof maxmind.openSync !== 'function') {
-      throw new Error('maxmind.openSync is unavailable');
+  localMMDBInitPromise = (async () => {
+    if (!locationLookupConfig.localDBPath) {
+      localDBLoaded = false;
+      localDBError = null;
+      return;
     }
 
-    localMMDBReader = maxmind.openSync(locationLookupConfig.localDBPath);
-    localDBLoaded = true;
-    localDBError = null;
-    console.log(`[location] local MMDB loaded: ${locationLookupConfig.localDBPath}`);
-  } catch (error) {
-    localMMDBReader = null;
-    localDBLoaded = false;
-    localDBError = error instanceof Error ? error.message : String(error);
-    console.warn('[location] failed to initialize local MMDB resolver:', localDBError);
-  }
+    if (!fs.existsSync(locationLookupConfig.localDBPath)) {
+      localDBLoaded = false;
+      localDBError = `Local GeoIP DB not found at ${locationLookupConfig.localDBPath}`;
+      console.warn(`[location] ${localDBError}`);
+      return;
+    }
+
+    try {
+      // Optional dependency: dashboard can run without local MMDB support.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const maxmind = require('maxmind') as MaxMindModule;
+      if (typeof maxmind.open !== 'function') {
+        throw new Error('maxmind.open is unavailable');
+      }
+
+      localMMDBReader = await maxmind.open(locationLookupConfig.localDBPath);
+      localDBLoaded = true;
+      localDBError = null;
+      console.log(`[location] local MMDB loaded: ${locationLookupConfig.localDBPath}`);
+    } catch (error) {
+      localMMDBReader = null;
+      localDBLoaded = false;
+      localDBError = error instanceof Error ? error.message : String(error);
+      console.warn('[location] failed to initialize local MMDB resolver:', localDBError);
+    }
+  })();
+
+  return localMMDBInitPromise;
 }
 
 function lookupLocationByLocalMMDB(ipAddress: string): GeoLocationLookup | null {
@@ -526,6 +535,8 @@ async function resolveLocation(ipAddress: string): Promise<GeoLocationLookup> {
     return createUnknownLocation(ipAddress);
   }
 
+  await initializeLocalMMDBResolver();
+
   const local = lookupLocationByLocalMMDB(ipAddress);
   if (local && local.country !== UNKNOWN_COUNTRY) {
     return local;
@@ -661,7 +672,7 @@ router.post('/lookup', async (req: Request, res: Response) => {
 });
 
 // Startup connectivity check
-initializeLocalMMDBResolver();
+void initializeLocalMMDBResolver();
 
 if (locationLookupConfig.enabled && process.env.NODE_ENV !== 'test') {
   lookupLocationByProviders('8.8.8.8')
