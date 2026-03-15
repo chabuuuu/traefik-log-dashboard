@@ -1,6 +1,6 @@
 {
   "name": "traefik-log-dashboard",
-  "version": "2.5.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Real-time analytics dashboard for Traefik logs",
   "scripts": {

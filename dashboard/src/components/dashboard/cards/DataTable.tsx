@@ -128,22 +128,24 @@ export function DataTable<TData>({
       <div className="rounded-lg border overflow-hidden">
         {virtualizeRows ? (
           <>
-            {/* Virtualized table */}
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-muted/50">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id} style={{ width: header.getSize() }}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-            </Table>
+            {/* Virtualized table - div-based header to match div-based rows */}
+            <div className="border-b bg-muted/50">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <div key={headerGroup.id} className="flex items-center">
+                  {headerGroup.headers.map((header) => (
+                    <div
+                      key={header.id}
+                      className="px-2 h-10 flex items-center text-sm font-medium text-muted-foreground"
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
             <div
               ref={parentRef}
               style={{ maxHeight, overflow: 'auto' }}

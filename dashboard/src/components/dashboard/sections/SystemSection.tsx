@@ -165,8 +165,8 @@ function ParserMetricsPanel({
                 { label: 'Errors', value: metrics.errors, error: true },
               ].map((item) => (
                 <div key={item.label} className={`rounded-md p-3 ${
-                  item.error ? 'bg-destructive-muted border border-destructive/20' :
-                  item.warn ? 'bg-warning-muted border border-warning/20' :
+                  item.error && item.value > 0 ? 'bg-destructive-muted border border-destructive/20' :
+                  item.warn && item.value > 0 ? 'bg-warning-muted border border-warning/20' :
                   'bg-muted/40'
                 }`}>
                   <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
