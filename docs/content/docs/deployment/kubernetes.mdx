@@ -1,0 +1,223 @@
+---
+title: Kubernetes
+description: Deploy on Kubernetes with plain manifests or Helm
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Step, Steps } from 'fumadocs-ui/components/steps';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
+## Prerequisites
+
+- Kubernetes 1.24+
+- `kubectl` configured for your cluster
+- Traefik running as your ingress controller (for IngressRoute support)
+- Traefik writing access logs to a known path on the node
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│ Kubernetes Cluster                              │
+│                                                 │
+│  ┌──────────────┐      ┌───────────────────┐   │
+│  │    Agent      │◄─────│    Dashboard      │   │
+│  │  (Go, :5000)  │      │  (Node.js, :3000) │   │
+│  │               │      │                   │   │
+│  │  HostPath:    │      │  PVC:             │   │
+│  │  /var/log/    │      │  /data (SQLite)   │   │
+│  │  traefik      │      │                   │   │
+│  │  (read-only)  │      │                   │   │
+│  └──────────────┘      └───────────────────┘   │
+│         │                        │              │
+│    ClusterIP               ClusterIP            │
+│    svc:5000                svc:3000              │
+│                                  │              │
+│                          IngressRoute           │
+│                     (traefik.example.com)        │
+└─────────────────────────────────────────────────┘
+```
+
+The **agent** is internal-only (ClusterIP). The **dashboard** is exposed via a Traefik IngressRoute. The dashboard proxies all API calls to the agent.
+
+## Deployment
+
+<Tabs items={['Plain Manifests', 'Helm Chart']}>
+<Tab value="Plain Manifests">
+
+<Steps>
+<Step>
+### Clone and configure
+
+```bash
+git clone https://github.com/hhftechnology/traefik-log-dashboard.git
+cd traefik-log-dashboard/k8s
+```
+
+Edit `secret.yaml` with your auth token:
+```bash
+# Generate a token
+openssl rand -hex 32
+```
+
+Edit `ingressroute.yaml` with your domain and cert resolver.
+
+If Traefik logs are not at `/var/log/traefik`, edit the `hostPath` in `agent-deployment.yaml`.
+</Step>
+
+<Step>
+### Apply all manifests
+
+```bash
+kubectl apply -k .
+```
+
+This creates:
+- `traefik-dashboard` namespace
+- Secret with auth token
+- ConfigMaps for agent and dashboard
+- PVCs for position tracking and SQLite
+- Agent Deployment + ClusterIP Service
+- Dashboard Deployment + ClusterIP Service
+- Traefik IngressRoute
+</Step>
+
+<Step>
+### Verify
+
+```bash
+kubectl -n traefik-dashboard get pods -w
+kubectl -n traefik-dashboard logs -f deploy/traefik-agent
+kubectl -n traefik-dashboard logs -f deploy/traefik-dashboard
+```
+</Step>
+</Steps>
+
+</Tab>
+<Tab value="Helm Chart">
+
+<Steps>
+<Step>
+### Install with Helm
+
+```bash
+helm install traefik-log-dashboard charts/traefik-log-dashboard \
+  --set auth.token=$(openssl rand -hex 32) \
+  --set ingress.host=dashboard.yourdomain.com \
+  --set agent.logHostPath=/var/log/traefik
+```
+</Step>
+
+<Step>
+### Custom values
+
+Create a `my-values.yaml` for your environment:
+
+```yaml
+auth:
+  token: "your-secret-token"
+
+agent:
+  logHostPath: /var/log/traefik
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+dashboard:
+  config:
+    agentName: "Production"
+    maxLogsDisplay: "2000"
+
+ingress:
+  host: dashboard.example.com
+  tls:
+    certResolver: letsencrypt
+```
+
+```bash
+helm install traefik-log-dashboard charts/traefik-log-dashboard -f my-values.yaml
+```
+</Step>
+
+<Step>
+### Verify
+
+```bash
+kubectl -n traefik-dashboard get pods -w
+```
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Key Configuration
+
+### HostPath Volume
+
+The agent reads Traefik logs via a `hostPath` volume mount. Set this to the directory where Traefik writes its access logs:
+
+| Method | Configuration |
+|--------|--------------|
+| Plain manifests | Edit `hostPath.path` in `agent-deployment.yaml` |
+| Helm | `--set agent.logHostPath=/your/traefik/log/path` |
+
+<Callout type="warn">
+  The agent pod must run on a node where Traefik writes logs. If Traefik runs as a DaemonSet, consider changing the agent from a Deployment to a DaemonSet as well.
+</Callout>
+
+### Authentication
+
+Both the agent and dashboard use the same shared token for API authentication. The token is stored in a Kubernetes Secret (`traefik-dashboard-auth`) and injected via environment variables.
+
+```bash
+# Generate a secure token
+openssl rand -hex 32
+```
+
+### Persistence
+
+| Component | Mount Path | Purpose | Default Size |
+|-----------|-----------|---------|-------------|
+| Agent | `/data` | Position file tracking | 64Mi |
+| Dashboard | `/data` | SQLite database | 1Gi |
+
+### Multi-Agent
+
+To monitor multiple Traefik instances, add additional agent environment variables in the dashboard ConfigMap:
+
+```yaml
+data:
+  AGENT_1_NAME: "Production"
+  AGENT_1_URL: "http://traefik-agent:5000"
+  AGENT_2_NAME: "Staging"
+  AGENT_2_URL: "http://staging-agent.other-namespace:5000"
+```
+
+## Port Forwarding (Quick Access)
+
+For testing without an IngressRoute:
+
+```bash
+kubectl -n traefik-dashboard port-forward svc/traefik-dashboard 3000:3000
+# Open http://localhost:3000
+```
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| Agent pod `CrashLoopBackOff` | Verify `hostPath` exists on the node and contains log files |
+| Dashboard init container stuck | Agent not healthy — check agent logs |
+| No logs showing | Verify Traefik is writing JSON logs to the configured path |
+| IngressRoute not working | Ensure Traefik CRDs are installed (`kubectl get crd ingressroutes.traefik.io`) |
+
+## Next Steps
+
+- [Docker Compose Deployment](/docs/deployment/docker) — Simpler alternative for non-K8s environments
+- [Configuration](/docs/configuration) — Detailed configuration options
+- [Environment Variables](/docs/configuration/environment-variables) — All available env vars

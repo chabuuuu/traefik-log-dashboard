@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "traefik-log-dashboard.dashboard.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.dashboard.service.port | quote }}
+  DATA_DIR: "/data"
+  AGENT_1_NAME: {{ .Values.dashboard.config.agentName | quote }}
+  AGENT_1_URL: "http://traefik-agent:{{ .Values.agent.service.port }}"
+  DASHBOARD_AGENTS_ENV_ONLY: {{ .Values.dashboard.config.agentsEnvOnly | quote }}
+  DASHBOARD_REFRESH_INTERVAL_MS: {{ .Values.dashboard.config.refreshIntervalMs | quote }}
+  DASHBOARD_MAX_LOGS_DISPLAY: {{ .Values.dashboard.config.maxLogsDisplay | quote }}
+  DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT: {{ .Values.dashboard.config.trafficTopItemsLimit | quote }}
+  DASHBOARD_PARSER_TREND_WINDOW_MINUTES: {{ .Values.dashboard.config.parserTrendWindowMinutes | quote }}
+  SHOW_DEMO_PAGE: {{ .Values.dashboard.config.showDemoPage | quote }}
+  GEOIP_LOOKUP_ENABLED: {{ .Values.dashboard.config.geoipEnabled | quote }}
+  GEOIP_PROVIDER_URLS: {{ .Values.dashboard.config.geoipProviderUrls | quote }}
+  GEOIP_LOOKUP_TIMEOUT_MS: {{ .Values.dashboard.config.geoipTimeoutMs | quote }}
+  GEOIP_LOOKUP_MAX_IPS: {{ .Values.dashboard.config.geoipMaxIps | quote }}
+  GEOIP_LOOKUP_CACHE_TTL_MS: {{ .Values.dashboard.config.geoipCacheTtlMs | quote }}

@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik-agent
+  namespace: traefik-dashboard
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: traefik-log-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: traefik-log-dashboard
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: agent
+          image: hhftechnology/traefik-log-dashboard-agent:latest
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: agent-config
+          env:
+            - name: TRAEFIK_LOG_DASHBOARD_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-dashboard-auth
+                  key: auth-token
+            - name: GOGC
+              value: "50"
+            - name: GOMEMLIMIT
+              value: "500MiB"
+          volumeMounts:
+            - name: traefik-logs
+              mountPath: /logs
+              readOnly: true
+            - name: position-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /api/logs/status
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 120
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/logs/status
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: traefik-logs
+          hostPath:
+            path: /var/log/traefik # <-- Adjust to your Traefik log path
+            type: DirectoryOrCreate
+        - name: position-data
+          persistentVolumeClaim:
+            claimName: agent-position-data

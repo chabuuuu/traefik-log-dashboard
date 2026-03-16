@@ -1,0 +1,152 @@
+---
+title: Docker Compose
+description: Deploy with Docker Compose
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Step, Steps } from 'fumadocs-ui/components/steps';
+
+## Prerequisites
+
+- Docker and Docker Compose v2+
+- Traefik configured with JSON access logs
+
+## Deployment
+
+<Steps>
+<Step>
+### Create directory structure
+
+```bash
+mkdir -p traefik-dashboard/data/{logs,positions}
+cd traefik-dashboard
+```
+</Step>
+
+<Step>
+### Generate authentication token
+
+```bash
+openssl rand -hex 32
+```
+
+Save this token — it secures communication between the dashboard and agent.
+</Step>
+
+<Step>
+### Create `docker-compose.yml`
+
+```yaml
+services:
+  traefik-agent:
+    image: hhftechnology/traefik-log-dashboard-agent:latest
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/logs:/logs:ro
+      - ./data/positions:/data
+    environment:
+      - TRAEFIK_LOG_DASHBOARD_ACCESS_PATH=/logs/access.log
+      - TRAEFIK_LOG_DASHBOARD_ERROR_PATH=/logs/traefik.log
+      - TRAEFIK_LOG_DASHBOARD_AUTH_TOKEN=YOUR_TOKEN_HERE
+      - TRAEFIK_LOG_DASHBOARD_SYSTEM_MONITORING=true
+      - TRAEFIK_LOG_DASHBOARD_LOG_FORMAT=json
+      - PORT=5000
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/logs/status"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - traefik-network
+
+  traefik-dashboard:
+    image: hhftechnology/traefik-log-dashboard:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - dashboard-data:/data
+    environment:
+      - AGENT_1_NAME=Primary Agent
+      - AGENT_1_URL=http://traefik-agent:5000
+      - AGENT_1_TOKEN=YOUR_TOKEN_HERE
+      - DASHBOARD_AGENTS_ENV_ONLY=true
+    depends_on:
+      traefik-agent:
+        condition: service_healthy
+    networks:
+      - traefik-network
+
+volumes:
+  dashboard-data:
+
+networks:
+  traefik-network:
+    external: true
+```
+</Step>
+
+<Step>
+### Start services
+
+```bash
+docker network create traefik-network 2>/dev/null || true
+docker compose up -d
+```
+</Step>
+
+<Step>
+### Access the dashboard
+
+Open [http://localhost:3000](http://localhost:3000)
+</Step>
+</Steps>
+
+<Callout type="info">
+  See [Environment Variables](/docs/configuration/environment-variables) for all available configuration options.
+</Callout>
+
+## Multi-Agent Setup
+
+Deploy an agent alongside each Traefik instance and add them via environment variables:
+
+```yaml
+environment:
+  - AGENT_1_NAME=Production
+  - AGENT_1_URL=http://traefik-agent-prod:5000
+  - AGENT_1_TOKEN=prod-token
+  - AGENT_2_NAME=Staging
+  - AGENT_2_URL=http://traefik-agent-staging:5000
+  - AGENT_2_TOKEN=staging-token
+```
+
+## Traefik Configuration
+
+Configure Traefik to output JSON access logs:
+
+```yaml
+# traefik.yml
+accessLog:
+  filePath: "/logs/access.log"
+  format: json
+  bufferingSize: 100
+
+  fields:
+    defaultMode: keep
+    names:
+      ClientUsername: drop
+    headers:
+      defaultMode: keep
+      names:
+        Authorization: drop
+        Cookie: drop
+```
+
+## Next Steps
+
+- [Kubernetes Deployment](/docs/deployment/kubernetes) — Production-grade K8s deployment
+- [Configuration](/docs/configuration) — Detailed configuration options
+- [Features](/docs/features) — Explore all dashboard features
