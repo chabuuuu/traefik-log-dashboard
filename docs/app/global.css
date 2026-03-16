@@ -1,3 +1,210 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+
+:root {
+  --color-fd-background: hsl(33 43% 92%);
+  --color-fd-foreground: hsl(342 58% 15%);
+  --color-fd-muted: hsl(33 35% 88%);
+  --color-fd-muted-foreground: hsl(14 24% 34%);
+  --color-fd-popover: hsl(35 55% 96%);
+  --color-fd-popover-foreground: hsl(342 58% 15%);
+  --color-fd-card: hsl(35 55% 95%);
+  --color-fd-card-foreground: hsl(342 58% 15%);
+  --color-fd-border: hsla(341, 55%, 24%, 0.18);
+  --color-fd-primary: hsl(341 69% 24%);
+  --color-fd-primary-foreground: hsl(34 70% 95%);
+  --color-fd-secondary: hsl(33 45% 90%);
+  --color-fd-secondary-foreground: hsl(342 58% 18%);
+  --color-fd-accent: hsla(341, 58%, 35%, 0.12);
+  --color-fd-accent-foreground: hsl(342 58% 18%);
+  --color-fd-ring: hsl(341 69% 29%);
+  --color-fd-overlay: hsla(341, 30%, 12%, 0.2);
+  --home-bg: #f8f0e6;
+  --home-bg-elevated: #fdf8f2;
+  --home-bg-strong: #f1e4d4;
+  --home-text-heading: #3b0f1d;
+  --home-text-body: #5f3d3a;
+  --home-text-muted: #7d5e58;
+  --home-border-light: rgba(102, 19, 45, 0.14);
+  --home-border-medium: rgba(102, 19, 45, 0.2);
+  --home-border-strong: rgba(102, 19, 45, 0.28);
+  --home-fill-subtle: rgba(102, 19, 45, 0.03);
+  --home-fill-light: rgba(102, 19, 45, 0.05);
+  --home-fill-medium: rgba(102, 19, 45, 0.08);
+  --home-accent: #66132d;
+  --home-accent-strong: #4f0f24;
+  --home-accent-soft: #8c3d4f;
+}
+
+.dark {
+  --color-fd-background: hsl(340 28% 8%);
+  --color-fd-foreground: hsl(31 53% 90%);
+  --color-fd-muted: hsl(339 23% 12%);
+  --color-fd-muted-foreground: hsl(22 29% 71%);
+  --color-fd-popover: hsl(339 24% 10%);
+  --color-fd-popover-foreground: hsl(31 53% 90%);
+  --color-fd-card: hsl(339 24% 10%);
+  --color-fd-card-foreground: hsl(31 53% 90%);
+  --color-fd-border: hsla(342, 42%, 66%, 0.22);
+  --color-fd-primary: hsl(26 68% 86%);
+  --color-fd-primary-foreground: hsl(341 70% 16%);
+  --color-fd-secondary: hsl(339 20% 16%);
+  --color-fd-secondary-foreground: hsl(31 53% 90%);
+  --color-fd-accent: hsla(340, 58%, 67%, 0.18);
+  --color-fd-accent-foreground: hsl(29 57% 88%);
+  --color-fd-ring: hsl(29 57% 88%);
+  --color-fd-overlay: hsla(0, 0%, 0%, 0.5);
+  --home-bg: #12090f;
+  --home-bg-elevated: #1b0e16;
+  --home-bg-strong: #281420;
+  --home-text-heading: #f9dfce;
+  --home-text-body: #d9b4aa;
+  --home-text-muted: #b98f84;
+  --home-border-light: rgba(246, 206, 189, 0.14);
+  --home-border-medium: rgba(246, 206, 189, 0.22);
+  --home-border-strong: rgba(246, 206, 189, 0.3);
+  --home-fill-subtle: rgba(246, 206, 189, 0.06);
+  --home-fill-light: rgba(246, 206, 189, 0.09);
+  --home-fill-medium: rgba(246, 206, 189, 0.14);
+  --home-accent: #d8a591;
+  --home-accent-strong: #f7dfd2;
+  --home-accent-soft: #f0c1b0;
+}
+
+body {
+  font-family: 'Avenir Next', 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+}
+
+#nd-sidebar {
+  border-right-color: var(--color-fd-border);
+  background-color: color-mix(in oklab, var(--color-fd-background) 94%, var(--color-fd-primary) 6%);
+}
+
+.home-page {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(102, 19, 45, 0.14), transparent 38%),
+    radial-gradient(circle at 92% 3%, rgba(140, 61, 79, 0.13), transparent 42%),
+    linear-gradient(180deg, #f9f2e9 0%, #f8efe5 44%, #f5e9da 100%);
+  color: var(--home-text-body);
+}
+
+.home-display {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, 'Times New Roman', serif;
+}
+
+.dark .home-page {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(232, 175, 154, 0.1), transparent 44%),
+    radial-gradient(circle at 92% 3%, rgba(188, 118, 95, 0.12), transparent 48%),
+    linear-gradient(180deg, #12090f 0%, #170b13 46%, #1a0e16 100%);
+}
+
+.home-kicker {
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--home-accent-soft);
+}
+
+.home-surface {
+  border: 1px solid var(--home-border-light);
+  background-color: var(--home-bg-elevated);
+  box-shadow: 0 20px 60px -42px rgba(58, 16, 27, 0.46);
+}
+
+.home-surface-strong {
+  border: 1px solid var(--home-border-medium);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(248, 234, 219, 0.95));
+}
+
+.home-chip {
+  border: 1px solid var(--home-border-light);
+  background-color: var(--home-fill-subtle);
+  color: var(--home-text-muted);
+}
+
+.home-button-primary {
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, var(--home-accent), var(--home-accent-strong));
+  color: #fff6ee;
+  transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+
+.home-button-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px -18px rgba(79, 15, 36, 0.7);
+}
+
+.home-button-secondary {
+  border: 1px solid var(--home-border-medium);
+  background-color: rgba(255, 255, 255, 0.55);
+  color: var(--home-text-heading);
+  transition: transform 200ms ease, border-color 200ms ease, background-color 200ms ease;
+}
+
+.home-button-secondary:hover {
+  transform: translateY(-1px);
+  border-color: var(--home-border-strong);
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
+.home-grid-pattern {
+  position: relative;
+}
+
+.home-grid-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(102, 19, 45, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(102, 19, 45, 0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent 85%);
+}
+
+.home-reveal {
+  animation: home-fade-up 700ms ease both;
+}
+
+.home-reveal-delay-1 {
+  animation-delay: 90ms;
+}
+
+.home-reveal-delay-2 {
+  animation-delay: 180ms;
+}
+
+.home-reveal-delay-3 {
+  animation-delay: 260ms;
+}
+
+@keyframes home-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-reveal,
+  .home-reveal-delay-1,
+  .home-reveal-delay-2,
+  .home-reveal-delay-3,
+  .home-button-primary,
+  .home-button-secondary {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}

@@ -8,8 +8,8 @@ type Position struct {
 
 // LogResult represents the result of reading logs
 type LogResult struct {
-	Logs      []string   `json:"logs"`
-	Positions []Position `json:"positions"`
+	Logs      []*TraefikLog `json:"logs"`
+	Positions []Position    `json:"positions"`
 }
 
 // LogFileSize represents information about a log file

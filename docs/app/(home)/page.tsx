@@ -1,276 +1,452 @@
+import Image from 'next/image';
 import Link from 'next/link';
-import { BookOpen, Zap, Shield, Globe, Activity, Terminal, Github } from 'lucide-react';
+import type { Metadata } from 'next';
+import {
+  ArrowRight,
+  BookOpen,
+  ChartNoAxesCombined,
+  Clock3,
+  Server,
+  ShieldCheck,
+  TerminalSquare,
+} from 'lucide-react';
+import {
+  absoluteUrl,
+  DISCORD_URL,
+  GITHUB_URL,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from '@/lib/site';
+
+const screenshotUrls = {
+  dashboard:
+    'https://github.com/user-attachments/assets/711a026b-c779-4b56-8be6-8471b9a7c144',
+  client:
+    'https://github.com/user-attachments/assets/8b3e9c85-00bb-473d-a0d8-695829b8e7d0',
+  traffic:
+    'https://github.com/user-attachments/assets/0077490c-4677-4c5a-87d2-d1ea25c42899',
+  system:
+    'https://github.com/user-attachments/assets/d769d9be-5232-4360-9d40-605ead33a7e4',
+  overview:
+    'https://github.com/user-attachments/assets/e9abfc8b-cea3-4913-86db-e8efdd8879e8',
+  maps: 'https://github.com/user-attachments/assets/1ddfa5fd-eb15-43fd-a36a-39341d8c22ae',
+};
+
+const trustItems = ['Traefik', 'Docker', 'Go', 'Vite', 'SQLite', 'Discord Webhooks'];
+
+const capabilityCards = [
+  {
+    title: 'Live traffic intelligence',
+    description:
+      'See request volume, latency, status codes, and top routes in one continuous stream.',
+    image: screenshotUrls.traffic,
+    href: '/docs/features',
+  },
+  {
+    title: 'Global request visibility',
+    description: 'Track request origins with map and globe views for fast operational context.',
+    image: screenshotUrls.maps,
+    href: '/docs/usage',
+  },
+  {
+    title: 'System and agent health',
+    description: 'Monitor CPU, memory, and disk from each connected agent without extra tooling.',
+    image: screenshotUrls.system,
+    href: '/docs/components/agent',
+  },
+  {
+    title: 'Focused troubleshooting',
+    description:
+      'Filter by status ranges, routes, geography, and custom conditions to isolate incidents quickly.',
+    image: screenshotUrls.client,
+    href: '/docs/troubleshooting',
+  },
+];
+
+const deploymentCards = [
+  {
+    title: 'Agent',
+    description: 'High-performance Go API for parsing and serving Traefik logs near the source.',
+    icon: Server,
+    href: '/docs/components/agent',
+    bullets: ['JSON and CLF support', 'Position tracking', 'Bearer token authentication'],
+  },
+  {
+    title: 'Dashboard',
+    description: 'Web analytics surface for teams that need always-on observability and quick filtering.',
+    icon: ChartNoAxesCombined,
+    href: '/docs/components/dashboard',
+    bullets: ['Live charts and maps', 'Advanced filters', 'Background alerting workflows'],
+  },
+  {
+    title: 'CLI',
+    description:
+      'Terminal-first monitoring with responsive panels for operators who prefer keyboard workflows.',
+    icon: TerminalSquare,
+    href: '/docs/components/cli',
+    bullets: ['Real-time metrics', 'Demo mode', 'Fast keyboard navigation'],
+  },
+];
+
+const faqItems = [
+  {
+    question: 'How quickly can I get a first dashboard running?',
+    answer:
+      'Most teams can run the Quick Start in under 5 minutes with Docker Compose and one authentication token.',
+  },
+  {
+    question: 'Can I monitor multiple Traefik instances at once?',
+    answer:
+      'Yes. The dashboard supports multi-agent deployments so you can aggregate logs across cloud, edge, and datacenter environments.',
+  },
+  {
+    question: 'Do I need to configure GeoIP before using maps?',
+    answer:
+      'No. HTTP-based provider mode works out of the box. You can optionally add a local MMDB for higher reliability.',
+  },
+  {
+    question: 'Can I keep alerts active when the dashboard UI is closed?',
+    answer:
+      'Yes. Background alerting and webhook delivery are handled server-side so summaries and threshold alerts continue running.',
+  },
+  {
+    question: 'Where do I find environment variable references?',
+    answer:
+      'Use the configuration docs for complete variable lists and examples for agent and dashboard deployments.',
+  },
+];
+
+export const metadata: Metadata = {
+  title: 'Traefik Observability Docs',
+  description:
+    'OpenPanel-inspired docs landing page for Traefik Log Dashboard with deployment guides, observability workflows, and production-ready references.',
+  alternates: {
+    canonical: absoluteUrl('/'),
+  },
+  openGraph: {
+    title: `${SITE_NAME} Documentation`,
+    description: SITE_DESCRIPTION,
+    url: absoluteUrl('/'),
+    images: [
+      {
+        url: screenshotUrls.dashboard,
+        width: 1920,
+        height: 1440,
+        alt: 'Traefik Log Dashboard overview',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_NAME} Documentation`,
+    description: SITE_DESCRIPTION,
+    images: [screenshotUrls.dashboard],
+  },
+};
 
 export default function HomePage() {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'SoftwareApplication',
+        name: SITE_NAME,
+        description: SITE_DESCRIPTION,
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Linux, macOS, Windows',
+        url: absoluteUrl('/'),
+        sameAs: [GITHUB_URL],
+      },
+      {
+        '@type': 'WebSite',
+        name: `${SITE_NAME} Docs`,
+        url: absoluteUrl('/'),
+        description: SITE_DESCRIPTION,
+      },
+    ],
+  };
+
   return (
-    <main className="flex flex-col min-h-screen">
-      {/* Hero Section */}
-      <section className="flex flex-col items-center justify-center text-center px-4 py-20 bg-gradient-to-b from-red-50 to-white dark:from-gray-900 dark:to-gray-950">
-        <div className="max-w-4xl">
-          {/* GitHub Link */}
-          <div className="flex items-center justify-center mb-8">
-            <a
-              href="https://github.com/hhftechnology/traefik-log-dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
-              aria-label="GitHub"
+    <main className="home-page home-grid-pattern relative overflow-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      <div className="relative mx-auto max-w-7xl px-6 py-16 md:py-24">
+        <section className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
+          <div className="home-reveal space-y-6">
+            <p className="home-kicker">Traefik log observability platform</p>
+            <h1 className="home-display text-4xl font-semibold leading-tight text-[var(--home-text-heading)] md:text-6xl">
+              The open-source analytics workspace for Traefik operations.
+            </h1>
+            <p className="max-w-2xl text-base leading-7 text-[var(--home-text-body)] md:text-lg">
+              Understand traffic patterns, diagnose errors faster, and keep distributed edge systems
+              stable with one dashboard that connects your agents, metrics, and alerts.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/docs/quickstart"
+                className="home-button-primary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
+              >
+                Start Quick Guide
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/docs"
+                className="home-button-secondary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
+              >
+                <BookOpen className="h-4 w-4" />
+                Read Documentation
+              </Link>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-2">
+              {trustItems.map((item) => (
+                <span key={item} className="home-chip rounded-full px-3 py-1 text-xs font-medium">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="home-reveal home-reveal-delay-1">
+            <div className="home-surface overflow-hidden rounded-3xl p-3">
+              <Image
+                src={screenshotUrls.dashboard}
+                alt="Traefik Log Dashboard analytics overview"
+                width={1920}
+                height={1440}
+                className="h-auto w-full rounded-2xl border border-[var(--home-border-light)]"
+                priority
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="home-reveal home-reveal-delay-1 mt-16 md:mt-20">
+          <div className="home-surface rounded-3xl px-5 py-5 md:px-8">
+            <p className="home-kicker mb-4">Everything you need to understand your edge traffic</p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {capabilityCards.map((card) => (
+                <Link
+                  key={card.title}
+                  href={card.href}
+                  className="home-surface-strong group rounded-2xl p-4 transition-transform hover:-translate-y-1"
+                >
+                  <div className="overflow-hidden rounded-xl border border-[var(--home-border-light)]">
+                    <Image
+                      src={card.image}
+                      alt={card.title}
+                      width={1920}
+                      height={1440}
+                      className="h-28 w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-[var(--home-text-heading)]">
+                    {card.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--home-text-body)]">{card.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--home-accent)]">
+                    Learn more <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="home-reveal home-reveal-delay-2 mt-16 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <article className="home-surface rounded-2xl p-5">
+            <p className="text-3xl font-semibold text-[var(--home-text-heading)]">100k+</p>
+            <p className="mt-1 text-sm font-semibold text-[var(--home-text-heading)]">Logs/second processed</p>
+            <p className="mt-2 text-sm text-[var(--home-text-muted)]">Optimized ingestion for busy edge gateways.</p>
+          </article>
+          <article className="home-surface rounded-2xl p-5">
+            <p className="text-3xl font-semibold text-[var(--home-text-heading)]">3</p>
+            <p className="mt-1 text-sm font-semibold text-[var(--home-text-heading)]">Core components</p>
+            <p className="mt-2 text-sm text-[var(--home-text-muted)]">Agent, Dashboard, and CLI tuned for operations teams.</p>
+          </article>
+          <article className="home-surface rounded-2xl p-5">
+            <p className="text-3xl font-semibold text-[var(--home-text-heading)]">50MB</p>
+            <p className="mt-1 text-sm font-semibold text-[var(--home-text-heading)]">Agent footprint</p>
+            <p className="mt-2 text-sm text-[var(--home-text-muted)]">Lightweight deployment profile for constrained environments.</p>
+          </article>
+          <article className="home-surface rounded-2xl p-5">
+            <p className="text-3xl font-semibold text-[var(--home-text-heading)]">24/7</p>
+            <p className="mt-1 text-sm font-semibold text-[var(--home-text-heading)]">Background alerting</p>
+            <p className="mt-2 text-sm text-[var(--home-text-muted)]">Webhook summaries and incident notifications when you are offline.</p>
+          </article>
+        </section>
+
+        <section className="home-reveal home-reveal-delay-2 mt-16 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div className="space-y-4">
+            <p className="home-kicker">Turn data into action</p>
+            <h2 className="home-display text-3xl font-semibold text-[var(--home-text-heading)] md:text-4xl">
+              Reduce mean-time-to-diagnosis with high-signal dashboards.
+            </h2>
+            <p className="text-base leading-7 text-[var(--home-text-body)]">
+              Spot regressions early with response-time trends, status code drift, and route-level
+              anomalies. Move from broad traffic trends to exact failing endpoints in a few clicks.
+            </p>
+            <ul className="space-y-2 text-sm text-[var(--home-text-body)]">
+              <li className="inline-flex items-center gap-2">
+                <Clock3 className="h-4 w-4 text-[var(--home-accent)]" />
+                Time-series monitoring with latency context
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-[var(--home-accent)]" />
+                Geo-aware filtering for noisy traffic suppression
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <Server className="h-4 w-4 text-[var(--home-accent)]" />
+                Multi-agent topology for distributed deployments
+              </li>
+            </ul>
+          </div>
+
+          <div className="home-surface rounded-3xl p-6">
+            <div className="mb-6 overflow-hidden rounded-2xl border border-[var(--home-border-light)]">
+              <Image
+                src={screenshotUrls.overview}
+                alt="Overview dashboard panel"
+                width={1920}
+                height={1440}
+                className="h-56 w-full object-cover"
+              />
+            </div>
+            <div className="grid h-32 grid-cols-6 items-end gap-2">
+              {[34, 56, 41, 70, 52, 78].map((height, index) => (
+                <div
+                  key={height}
+                  className="rounded-t-md bg-[var(--home-accent)]/80"
+                  style={{ height: `${height}%`, opacity: 0.54 + index * 0.06 }}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="home-reveal home-reveal-delay-3 mt-16">
+          <div className="mb-6 flex items-end justify-between gap-4">
+            <div>
+              <p className="home-kicker">Deployment options</p>
+              <h2 className="home-display text-3xl font-semibold text-[var(--home-text-heading)] md:text-4xl">
+                Built for teams that ship and measure
+              </h2>
+            </div>
+            <Link
+              href="/docs/features"
+              className="text-sm font-semibold text-[var(--home-accent)] hover:underline"
             >
-              <Github className="w-8 h-8" />
+              Explore feature docs
+            </Link>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-3">
+            {deploymentCards.map((card) => {
+              const Icon = card.icon;
+
+              return (
+                <article key={card.title} className="home-surface rounded-2xl p-6">
+                  <div className="mb-4 inline-flex rounded-xl border border-[var(--home-border-light)] bg-[var(--home-fill-subtle)] p-2.5">
+                    <Icon className="h-5 w-5 text-[var(--home-accent)]" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-[var(--home-text-heading)]">{card.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--home-text-body)]">{card.description}</p>
+                  <ul className="mt-4 space-y-2 text-sm text-[var(--home-text-muted)]">
+                    {card.bullets.map((bullet) => (
+                      <li key={bullet} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--home-accent)]" />
+                        {bullet}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={card.href}
+                    className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[var(--home-accent)] hover:underline"
+                  >
+                    Learn more <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="home-reveal home-reveal-delay-3 mt-16 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
+          <div>
+            <p className="home-kicker mb-2">FAQ</p>
+            <h2 className="home-display text-3xl font-semibold text-[var(--home-text-heading)] md:text-4xl">Get started in minutes</h2>
+            <p className="mt-3 text-sm leading-6 text-[var(--home-text-body)]">
+              These are common setup and operations questions from teams adopting Traefik Log Dashboard.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {faqItems.map((item) => (
+              <details
+                key={item.question}
+                className="home-surface group rounded-2xl px-5 py-4 open:border-[var(--home-border-strong)]"
+              >
+                <summary className="cursor-pointer list-none text-sm font-semibold text-[var(--home-text-heading)]">
+                  <span className="inline-flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-[var(--home-accent)] transition-transform group-open:rotate-90" />
+                    {item.question}
+                  </span>
+                </summary>
+                <p className="pt-3 text-sm leading-6 text-[var(--home-text-body)]">{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        <section className="home-reveal home-reveal-delay-3 mt-16 rounded-3xl border border-[var(--home-border-medium)] bg-[var(--home-accent)] px-6 py-12 text-[#fff3e9] md:px-10">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f8d6c3]">Ready to deploy</p>
+              <h2 className="mt-3 home-display text-3xl font-semibold text-[#fff7f2] md:text-4xl">
+                Track Traefik traffic with production-ready observability.
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-[#ffe7da]">
+                Start with Quick Start, then expand into filtering, alerting, and multi-agent monitoring.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/docs/quickstart"
+                className="inline-flex items-center gap-2 rounded-full bg-[#fff6ef] px-5 py-2.5 text-sm font-semibold text-[var(--home-accent-strong)]"
+              >
+                Launch Quick Start
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/docs"
+                className="inline-flex items-center gap-2 rounded-full border border-[#f8d6c3] px-5 py-2.5 text-sm font-semibold text-[#fff5ec]"
+              >
+                Full Documentation
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <footer className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--home-border-light)] pt-6 text-sm text-[var(--home-text-muted)]">
+          <p>Made for teams operating Traefik at scale.</p>
+          <div className="flex items-center gap-4">
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="hover:text-[var(--home-accent)]">
+              GitHub
             </a>
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-red-600 to-orange-600 dark:from-red-400 dark:to-orange-400 bg-clip-text text-transparent">
-            Traefik Log Dashboard
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8">
-            Comprehensive real-time analytics platform for Traefik reverse proxy logs
-          </p>
-          <p className="text-lg text-gray-500 dark:text-gray-400 mb-10">
-            Multi-agent architecture • Interactive visualizations • Advanced filtering • Background alerting
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/docs"
-              className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <BookOpen className="w-5 h-5" />
-              Read Documentation
-            </Link>
-            <Link
-              href="/docs/quickstart"
-              className="px-8 py-3 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <Zap className="w-5 h-5" />
-              Quick Start Guide
+            <a href={DISCORD_URL} target="_blank" rel="noreferrer" className="hover:text-[var(--home-accent)]">
+              Discord
+            </a>
+            <Link href="/docs" className="inline-flex items-center gap-1 hover:text-[var(--home-accent)]">
+              Docs <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="px-4 py-16 max-w-7xl mx-auto w-full">
-        <h2 className="text-3xl font-bold text-center mb-12">Why Choose Traefik Log Dashboard?</h2>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* Feature 1 */}
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center mb-4">
-              <Activity className="w-6 h-6 text-red-600 dark:text-red-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Multi-Agent Architecture</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage multiple Traefik instances from a single dashboard. Deploy agents across datacenters, cloud, and edge locations.
-            </p>
-          </div>
-
-          {/* Feature 2 */}
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-4">
-              <Globe className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Interactive Visualizations</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              3D globe with geographic mapping, real-time charts, heat maps, and timeline visualizations for comprehensive insights.
-            </p>
-          </div>
-
-          {/* Feature 3 */}
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
-              <Shield className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Enterprise Security</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Comprehensive middleware protection, rate limiting, malicious pattern detection, and CVE-2025-55182 patches.
-            </p>
-          </div>
-
-          {/* Feature 4 */}
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center mb-4">
-              <Zap className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">High Performance</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Go-based agent with position tracking, parallel fetching, optimized state management, and intelligent caching.
-            </p>
-          </div>
-
-          {/* Feature 5 */}
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="w-12 h-12 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center mb-4">
-              <BookOpen className="w-6 h-6 text-pink-600 dark:text-pink-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Advanced Filtering</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Include/exclude modes, geographic filtering, custom conditions with AND/OR logic, and saved filter presets.
-            </p>
-          </div>
-
-          {/* Feature 6 */}
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="w-12 h-12 bg-cyan-100 dark:bg-cyan-900 rounded-lg flex items-center justify-center mb-4">
-              <Terminal className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Background Alerting</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Server-side alert processing with Discord webhooks, daily summaries, and notifications even when dashboard is closed.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Statistics Section */}
-      <section className="px-4 py-16 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-4xl font-bold text-red-600 dark:text-red-400 mb-2">3</div>
-              <div className="text-gray-600 dark:text-gray-400">Components</div>
-              <div className="text-sm text-gray-500 dark:text-gray-500">Agent, Dashboard, CLI</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-orange-600 dark:text-orange-400 mb-2">100k+</div>
-              <div className="text-gray-600 dark:text-gray-400">Logs/Second</div>
-              <div className="text-sm text-gray-500 dark:text-gray-500">Processing Speed</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">∞</div>
-              <div className="text-gray-600 dark:text-gray-400">Agents</div>
-              <div className="text-sm text-gray-500 dark:text-gray-500">Unlimited Scale</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-yellow-600 dark:text-yellow-400 mb-2">50MB</div>
-              <div className="text-gray-600 dark:text-gray-400">Memory</div>
-              <div className="text-sm text-gray-500 dark:text-gray-500">Agent Footprint</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Components Section */}
-      <section className="px-4 py-16 max-w-7xl mx-auto w-full">
-        <h2 className="text-3xl font-bold text-center mb-12">Three Deployment Options</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg">
-            <h3 className="text-2xl font-semibold mb-4">Agent</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              High-performance Go backend for parsing Traefik logs and exposing metrics via REST API.
-            </p>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-6">
-              <li>✓ JSON & CLF log formats</li>
-              <li>✓ GeoIP integration</li>
-              <li>✓ System monitoring</li>
-              <li>✓ Bearer token auth</li>
-            </ul>
-            <Link
-              href="/docs/components/agent"
-              className="text-red-600 dark:text-red-400 hover:underline inline-flex items-center"
-            >
-              Learn more →
-            </Link>
-          </div>
-
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg bg-red-50 dark:bg-red-950">
-            <h3 className="text-2xl font-semibold mb-4">Dashboard</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Modern Next.js web UI with interactive charts, real-time updates, and beautiful visualizations.
-            </p>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-6">
-              <li>✓ Multi-agent management</li>
-              <li>✓ 3D globe & maps</li>
-              <li>✓ Advanced filtering</li>
-              <li>✓ Background alerting</li>
-            </ul>
-            <Link
-              href="/docs/components/dashboard"
-              className="text-red-600 dark:text-red-400 hover:underline inline-flex items-center"
-            >
-              Learn more →
-            </Link>
-          </div>
-
-          <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg">
-            <h3 className="text-2xl font-semibold mb-4">CLI</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Beautiful terminal-based dashboard using Bubble Tea for an interactive TUI experience.
-            </p>
-            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-6">
-              <li>✓ Real-time metrics</li>
-              <li>✓ Responsive layout</li>
-              <li>✓ Keyboard navigation</li>
-              <li>✓ Demo mode</li>
-            </ul>
-            <Link
-              href="/docs/components/cli"
-              className="text-red-600 dark:text-red-400 hover:underline inline-flex items-center"
-            >
-              Learn more →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="px-4 py-16 bg-gradient-to-r from-red-600 to-orange-600 text-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Ready to Get Started?
-          </h2>
-          <p className="text-xl mb-8 opacity-90">
-            Deploy with Docker Compose in under 5 minutes
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/docs/quickstart"
-              className="px-8 py-3 bg-white text-red-600 hover:bg-gray-100 font-medium rounded-lg transition-colors inline-flex items-center justify-center gap-2"
-            >
-              <Zap className="w-5 h-5" />
-              Quick Start Guide
-            </Link>
-            <Link
-              href="/docs"
-              className="px-8 py-3 border-2 border-white hover:bg-white/10 font-medium rounded-lg transition-colors inline-flex items-center justify-center gap-2"
-            >
-              <BookOpen className="w-5 h-5" />
-              Full Documentation
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="px-4 py-8 border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-gray-600 dark:text-gray-400 text-center md:text-left">
-              Made with ❤️ for the Traefik community
-            </p>
-            <div className="flex items-center gap-6">
-              <a
-                href="https://github.com/hhftechnology/traefik-log-dashboard"
-                className="text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors flex items-center gap-2"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Github className="w-5 h-5" />
-                <span className="text-sm">GitHub</span>
-              </a>
-              <a
-                href="https://discord.gg/HDCt9MjyMJ"
-                className="text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors flex items-center gap-2"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
-                </svg>
-                <span className="text-sm">Discord</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </main>
   );
 }

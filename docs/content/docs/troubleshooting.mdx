@@ -54,18 +54,32 @@ The dashboard requires direct HTTP connectivity to agents. Options:
 ### Geographic data not showing
 
 <Callout type="info">
-GeoIP is handled automatically by the dashboard using [geolite2-redist](https://www.npmjs.com/package/geolite2-redist). No configuration needed.
+GeoIP uses a hybrid chain: optional local MMDB first (`GEOIP_LOCAL_DB_PATH`), then HTTP providers (`GEOIP_PROVIDER_URLS` / `GEOIP_PROVIDER_BASE_URL`).
 </Callout>
 
-1. **Check dashboard logs**: Look for GeoIP initialization errors.
-2. **Verify IPs are public**: Private IPs (10.x.x.x, 192.168.x.x, etc.) cannot be geolocated.
-3. **Container restart**: Restart the dashboard container to re-initialize GeoIP databases.
+1. **Check lookup health**:
+   ```bash
+   curl http://localhost:3000/api/location/status
+   ```
+   Confirm `enabled=true`, and either `local_db_loaded=true` or at least one provider in `providers` with `available=true`.
+
+2. **Run a direct lookup test**:
+   ```bash
+   curl -s -X POST http://localhost:3000/api/location/lookup \
+     -H 'Content-Type: application/json' \
+     -d '{"ips":["8.8.8.8","1.1.1.1"]}' | jq .
+   ```
+   If responses are all `"country":"Unknown"`, inspect provider errors/cooldowns from `/api/location/status`.
+
+3. **Verify logs are geo-eligible**:
+   - Private IPs cannot be geolocated.
+   - If Geography is empty and the header shows **Internal Hidden**, click it (or use the Geography card action) to include internal traffic.
 
 ### All IPs show as "Unknown" location
 
-- Private IP ranges cannot be geolocated
-- The 11.0.0.0/8 range is reserved and shows as "Unknown"
-- Check if requests are coming through a proxy that masks real IPs
+- Private/reserved ranges cannot be geolocated.
+- If running behind a proxy/CDN, verify forwarded IP headers and filter proxy settings.
+- Provider-side blocks (e.g. HTTP 403) are surfaced in `/api/location/status` (`providers[].last_error` / `cooldown_until`).
 
 ## Environment Agent
 

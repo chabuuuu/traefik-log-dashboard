@@ -1,0 +1,16 @@
+apiVersion: v2
+name: traefik-log-dashboard
+description: Real-time analytics dashboard for Traefik reverse proxy logs
+version: 0.1.0
+appVersion: "latest"
+type: application
+keywords:
+  - traefik
+  - logs
+  - dashboard
+  - monitoring
+home: https://github.com/hhftechnology/traefik-log-dashboard
+sources:
+  - https://github.com/hhftechnology/traefik-log-dashboard
+maintainers:
+  - name: hhftechnology

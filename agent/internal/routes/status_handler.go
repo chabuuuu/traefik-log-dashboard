@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/hhftechnology/traefik-log-dashboard/agent/internal/utils"
+	"github.com/hhftechnology/traefik-log-dashboard/agent/pkg/logs"
 )
 
 // HandleStatus handles health check requests
@@ -39,6 +40,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		"error_path_exists":  errorPathExists,
 		"system_monitoring":  h.config.SystemMonitoring,
 		"auth_enabled":       h.config.AuthToken != "",
+		"parser_metrics":     logs.GetParserMetrics(),
 	}
 
 	utils.RespondJSON(w, http.StatusOK, status)

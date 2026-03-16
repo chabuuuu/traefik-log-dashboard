@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agent-position-data
+  namespace: traefik-dashboard
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: traefik-log-dashboard
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 64Mi

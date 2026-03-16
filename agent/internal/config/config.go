@@ -2,6 +2,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -37,6 +39,9 @@ type Config struct {
 
 	// State persistence
 	PositionFile string
+
+	// Rate limiting
+	RateLimitRPM int
 }
 
 // Load reads configuration from environment variables.
@@ -44,7 +49,11 @@ type Config struct {
 func Load() *Config {
 	// Load .env file if present (optional)
 	if err := godotenv.Load(); err != nil {
-		logger.Log.Println("No .env file found, using system environment variables")
+		if errors.Is(err, os.ErrNotExist) {
+			logger.Log.Println("No .env file found, using system environment variables")
+		} else {
+			logger.Log.Printf("Warning: error loading .env file: %v", err)
+		}
 	}
 
 	return &Config{
@@ -61,6 +70,7 @@ func Load() *Config {
 		StreamMaxDurationSec:   getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_DURATION_SEC", 300),
 		StreamMaxBytesPerBatch: getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_BYTES_PER_BATCH", 512*1024),
 		PositionFile:           getEnv("POSITION_FILE", "/data/.position"),
+		RateLimitRPM:           getEnvInt("RATE_LIMIT_RPM", 300),
 	}
 }
 
@@ -93,4 +103,27 @@ func getEnvInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return result
+}
+
+// Validate checks that the configuration has valid values.
+func (c *Config) Validate() error {
+	if c.StreamBatchLines <= 0 {
+		return fmt.Errorf("StreamBatchLines must be > 0, got %d", c.StreamBatchLines)
+	}
+	if c.StreamFlushIntervalMS <= 0 {
+		return fmt.Errorf("StreamFlushIntervalMS must be > 0, got %d", c.StreamFlushIntervalMS)
+	}
+	if c.StreamMaxClients <= 0 {
+		return fmt.Errorf("StreamMaxClients must be > 0, got %d", c.StreamMaxClients)
+	}
+	if c.StreamMaxDurationSec <= 0 {
+		return fmt.Errorf("StreamMaxDurationSec must be > 0, got %d", c.StreamMaxDurationSec)
+	}
+	if c.MonitorInterval <= 0 {
+		return fmt.Errorf("MonitorInterval must be > 0, got %d", c.MonitorInterval)
+	}
+	if c.RateLimitRPM < 0 {
+		return fmt.Errorf("RateLimitRPM must be >= 0, got %d", c.RateLimitRPM)
+	}
+	return nil
 }

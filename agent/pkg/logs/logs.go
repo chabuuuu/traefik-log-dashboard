@@ -27,26 +27,38 @@ var (
 )
 
 func GetLogs(path string, positions []Position, isErrorLog bool, includeCompressed bool) (LogResult, error) {
+	return GetLogsWithLimit(path, positions, isErrorLog, includeCompressed, 1000)
+}
+
+func GetLogsWithLimit(path string, positions []Position, isErrorLog bool, includeCompressed bool, tailLines int) (LogResult, error) {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return LogResult{}, fmt.Errorf("path error: %w", err)
 	}
 
+	if tailLines <= 0 {
+		tailLines = 1000
+	}
+
 	var result LogResult
 	if fileInfo.IsDir() {
-		result, err = GetDirectoryLogs(path, positions, isErrorLog, includeCompressed)
+		result, err = getDirectoryLogsWithLimit(path, positions, isErrorLog, includeCompressed, tailLines)
 	} else {
 		singlePos := int64(0)
 		if len(positions) > 0 {
 			singlePos = positions[0].Position
 		}
-		result, err = GetLog(path, singlePos)
+		result, err = getLogWithLimit(path, singlePos, tailLines)
 	}
 
 	return result, err
 }
 
 func GetLog(filePath string, position int64) (LogResult, error) {
+	return getLogWithLimit(filePath, position, 1000)
+}
+
+func getLogWithLimit(filePath string, position int64, tailLines int) (LogResult, error) {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		logger.Log.Println("File not found")
 		return LogResult{}, fmt.Errorf("file not found: %s", filePath)
@@ -61,7 +73,7 @@ func GetLog(filePath string, position int64) (LogResult, error) {
 			return LogResult{}, fmt.Errorf("error reading compressed log file: %w", err)
 		}
 	} else {
-		result, err = readLogFile(filePath, position)
+		result, err = readLogFile(filePath, position, tailLines)
 		if err != nil {
 			return LogResult{}, fmt.Errorf("error reading log file: %w", err)
 		}
@@ -70,7 +82,7 @@ func GetLog(filePath string, position int64) (LogResult, error) {
 	return result, nil
 }
 
-func readLogFile(filePath string, position int64) (LogResult, error) {
+func readLogFile(filePath string, position int64, tailLines int) (LogResult, error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return LogResult{}, err
@@ -80,14 +92,13 @@ func readLogFile(filePath string, position int64) (LogResult, error) {
 
 	// If position is -1, start from end of file (tail mode)
 	if position == -1 {
-		// Read last 1000 lines
-		return tailLogFile(filePath, 1000)
+		return tailLogFile(filePath, tailLines)
 	}
 
 	// If position >= fileSize, no new logs
 	if position >= fileSize {
 		return LogResult{
-			Logs:      []string{},
+			Logs:      []*TraefikLog{},
 			Positions: []Position{{Position: fileSize}},
 		}, nil
 	}
@@ -104,7 +115,7 @@ func readLogFile(filePath string, position int64) (LogResult, error) {
 	}
 
 	// PERFORMANCE FIX: Pre-allocate slice with estimated capacity
-	logs := make([]string, 0, 1000)
+	parsedLogs := make([]*TraefikLog, 0, 1000)
 	scanner := bufio.NewScanner(file)
 	bufPtr := scanBufPool.Get().(*[]byte)
 	defer scanBufPool.Put(bufPtr)
@@ -113,7 +124,10 @@ func readLogFile(filePath string, position int64) (LogResult, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line != "" {
-			logs = append(logs, line)
+			parsed, parseErr := ParseTraefikLog(line)
+			if parseErr == nil && parsed != nil {
+				parsedLogs = append(parsedLogs, parsed)
+			}
 		}
 	}
 
@@ -128,14 +142,14 @@ func readLogFile(filePath string, position int64) (LogResult, error) {
 	}
 
 	return LogResult{
-		Logs:      logs,
+		Logs:      parsedLogs,
 		Positions: []Position{{Position: currentPos}},
 	}, nil
 }
 
 // StreamFromPosition reads new lines from a file starting at position and emits in batches.
 // It stops on context cancellation or EOF without new data and returns the latest position.
-func StreamFromPosition(ctx context.Context, filePath string, position int64, batchLines int, maxBytes int) (lines []string, nextPos int64, err error) {
+func StreamFromPosition(ctx context.Context, filePath string, position int64, batchLines int, maxBytes int) (logs []*TraefikLog, nextPos int64, err error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return nil, position, err
@@ -143,7 +157,7 @@ func StreamFromPosition(ctx context.Context, filePath string, position int64, ba
 
 	// No new data
 	if position >= fileInfo.Size() {
-		return []string{}, fileInfo.Size(), nil
+		return []*TraefikLog{}, fileInfo.Size(), nil
 	}
 
 	f, err := os.Open(filePath)
@@ -159,7 +173,7 @@ func StreamFromPosition(ctx context.Context, filePath string, position int64, ba
 	}
 
 	reader := bufio.NewReaderSize(f, 64*1024)
-	lines = make([]string, 0, batchLines)
+	logs = make([]*TraefikLog, 0, batchLines)
 	bytesUsed := 0
 	if batchLines <= 0 {
 		batchLines = 400
@@ -168,10 +182,10 @@ func StreamFromPosition(ctx context.Context, filePath string, position int64, ba
 		maxBytes = 512 * 1024
 	}
 
-	for len(lines) < batchLines && bytesUsed < maxBytes {
+	for len(logs) < batchLines && bytesUsed < maxBytes {
 		select {
 		case <-ctx.Done():
-			return lines, position, ctx.Err()
+			return logs, position, ctx.Err()
 		default:
 		}
 
@@ -179,9 +193,9 @@ func StreamFromPosition(ctx context.Context, filePath string, position int64, ba
 		if err != nil {
 			if err == io.EOF {
 				position, _ = f.Seek(0, io.SeekCurrent)
-				return lines, position, nil
+				return logs, position, nil
 			}
-			return lines, position, err
+			return logs, position, err
 		}
 
 		trimmed := strings.TrimRight(line, "\r\n")
@@ -190,15 +204,18 @@ func StreamFromPosition(ctx context.Context, filePath string, position int64, ba
 			if bytesUsed+entrySize > maxBytes {
 				// stop and return what we have; caller may re-read from current position
 				position, _ = f.Seek(0, io.SeekCurrent)
-				return lines, position, nil
+				return logs, position, nil
 			}
-			lines = append(lines, trimmed)
+			parsed, parseErr := ParseTraefikLog(trimmed)
+			if parseErr == nil && parsed != nil {
+				logs = append(logs, parsed)
+			}
 			bytesUsed += entrySize
 		}
 	}
 
 	position, _ = f.Seek(0, io.SeekCurrent)
-	return lines, position, nil
+	return logs, position, nil
 }
 
 // tailLogFile reads the last N lines from a file
@@ -218,11 +235,11 @@ func tailLogFile(filePath string, numLines int) (LogResult, error) {
 	fileSize := fileInfo.Size()
 
 	// Pre-allocate slice with capacity to avoid reallocations
-	logs := make([]string, 0, numLines)
+	rawLines := make([]string, 0, numLines)
 	var offset int64 = 0
 	bufferSize := int64(8192)
 
-	for offset < fileSize && len(logs) < numLines {
+	for offset < fileSize && len(rawLines) < numLines {
 		// Calculate read position
 		readSize := bufferSize
 		if offset+bufferSize > fileSize {
@@ -249,8 +266,8 @@ func tailLogFile(filePath string, numLines int) (LogResult, error) {
 		// instead of prepending each line (which causes O(n²) allocations)
 		for i := len(lines) - 1; i >= 0; i-- {
 			if lines[i] != "" {
-				logs = append(logs, lines[i])
-				if len(logs) >= numLines {
+				rawLines = append(rawLines, lines[i])
+				if len(rawLines) >= numLines {
 					break
 				}
 			}
@@ -263,17 +280,26 @@ func tailLogFile(filePath string, numLines int) (LogResult, error) {
 	}
 
 	// Reverse the slice once (O(n) instead of O(n²))
-	for i, j := 0, len(logs)-1; i < j; i, j = i+1, j-1 {
-		logs[i], logs[j] = logs[j], logs[i]
+	for i, j := 0, len(rawLines)-1; i < j; i, j = i+1, j-1 {
+		rawLines[i], rawLines[j] = rawLines[j], rawLines[i]
 	}
 
 	// Trim to exact number of lines requested
-	if len(logs) > numLines {
-		logs = logs[len(logs)-numLines:]
+	if len(rawLines) > numLines {
+		rawLines = rawLines[len(rawLines)-numLines:]
+	}
+
+	// Parse raw lines into structured logs
+	parsedLogs := make([]*TraefikLog, 0, len(rawLines))
+	for _, line := range rawLines {
+		parsed, parseErr := ParseTraefikLog(line)
+		if parseErr == nil && parsed != nil {
+			parsedLogs = append(parsedLogs, parsed)
+		}
 	}
 
 	return LogResult{
-		Logs:      logs,
+		Logs:      parsedLogs,
 		Positions: []Position{{Position: fileSize}},
 	}, nil
 }
@@ -295,14 +321,11 @@ func GetRecentLogs(path string, since time.Time) (LogResult, error) {
 		return result, err
 	}
 
-	// Filter logs by timestamp (assuming JSON logs with time field)
-	// PERFORMANCE FIX: Pre-allocate with estimated capacity
-	filteredLogs := make([]string, 0, len(result.Logs))
-	for _, logLine := range result.Logs {
-		if strings.Contains(logLine, "\"time\":") || strings.Contains(logLine, "\"StartUTC\":") {
-			// Try to extract timestamp and compare
-			// This is a simple check - could be enhanced with proper JSON parsing
-			filteredLogs = append(filteredLogs, logLine)
+	// Filter logs by timestamp — now that logs are parsed, we can compare directly
+	filteredLogs := make([]*TraefikLog, 0, len(result.Logs))
+	for _, log := range result.Logs {
+		if !log.StartUTC.IsZero() && !log.StartUTC.Before(since) {
+			filteredLogs = append(filteredLogs, log)
 		}
 	}
 
@@ -317,7 +340,7 @@ func GetRecentDirectoryLogs(dirPath string, since time.Time) (LogResult, error) 
 	}
 
 	// PERFORMANCE FIX: Pre-allocate with estimated capacity
-	allLogs := make([]string, 0, 1000)
+	allLogs := make([]*TraefikLog, 0, 1000)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -360,20 +383,23 @@ func readErrorLogDirectly(filePath string, position int64) (LogResult, error) {
 	strContent := string(content)
 
 	if position >= int64(len(strContent)) {
-		return LogResult{Logs: []string{}, Positions: []Position{{Position: position}}}, nil
+		return LogResult{Logs: []*TraefikLog{}, Positions: []Position{{Position: position}}}, nil
 	}
 
 	newContent := strContent[position:]
 
-	lines := []string{}
+	parsedLogs := []*TraefikLog{}
 	for _, line := range strings.Split(newContent, "\n") {
 		if strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
+			parsed, parseErr := ParseTraefikLog(line)
+			if parseErr == nil && parsed != nil {
+				parsedLogs = append(parsedLogs, parsed)
+			}
 		}
 	}
 
 	return LogResult{
-		Logs:      lines,
+		Logs:      parsedLogs,
 		Positions: []Position{{Position: int64(len(strContent))}},
 	}, nil
 }
@@ -396,20 +422,27 @@ func readCompressedLogFile(filePath string) (LogResult, error) {
 		return LogResult{}, err
 	}
 
-	var logs []string
+	var parsedLogs []*TraefikLog
 	for _, line := range strings.Split(string(content), "\n") {
 		if strings.TrimSpace(line) != "" {
-			logs = append(logs, line)
+			parsed, parseErr := ParseTraefikLog(line)
+			if parseErr == nil && parsed != nil {
+				parsedLogs = append(parsedLogs, parsed)
+			}
 		}
 	}
 
 	return LogResult{
-		Logs:      logs,
+		Logs:      parsedLogs,
 		Positions: []Position{{Position: 0}},
 	}, nil
 }
 
 func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, includeCompressed bool) (LogResult, error) {
+	return getDirectoryLogsWithLimit(dirPath, positions, isErrorLog, includeCompressed, 1000)
+}
+
+func getDirectoryLogsWithLimit(dirPath string, positions []Position, isErrorLog bool, includeCompressed bool, tailLines int) (LogResult, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return LogResult{}, fmt.Errorf("failed to read directory: %w", err)
@@ -431,7 +464,7 @@ func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, inc
 	sort.Strings(logFiles)
 
 	if len(logFiles) == 0 {
-		return LogResult{Logs: []string{}, Positions: []Position{}}, nil
+		return LogResult{Logs: []*TraefikLog{}, Positions: []Position{}}, nil
 	}
 
 	posMap := make(map[string]int64)
@@ -442,14 +475,14 @@ func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, inc
 	}
 
 	// PERFORMANCE FIX: Pre-allocate slices with estimated capacity
-	allLogs := make([]string, 0, 1000)
+	allLogs := make([]*TraefikLog, 0, 1000)
 	newPositions := make([]Position, 0, len(logFiles))
 
 	// If no positions provided, read last file with tail mode
 	if len(positions) == 0 && len(logFiles) > 0 {
 		lastFile := logFiles[len(logFiles)-1]
 		fullPath := filepath.Join(dirPath, lastFile)
-		result, err := tailLogFile(fullPath, 1000)
+		result, err := tailLogFile(fullPath, tailLines)
 		if err == nil {
 			return result, nil
 		}
@@ -459,7 +492,7 @@ func GetDirectoryLogs(dirPath string, positions []Position, isErrorLog bool, inc
 		fullPath := filepath.Join(dirPath, fileName)
 		position := posMap[fileName]
 
-		result, err := GetLog(fullPath, position)
+		result, err := getLogWithLimit(fullPath, position, tailLines)
 		if err != nil {
 			logger.Log.Printf("Error reading log file %s: %v", fileName, err)
 			continue

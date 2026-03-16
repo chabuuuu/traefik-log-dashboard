@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik-agent
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "traefik-log-dashboard.agent.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.agent.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "traefik-log-dashboard.agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "traefik-log-dashboard.agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.agent.securityContext }}
+      securityContext:
+        runAsNonRoot: {{ .runAsNonRoot }}
+        runAsUser: {{ .runAsUser }}
+        fsGroup: {{ .fsGroup }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.agent.service.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: agent-config
+          env:
+            - name: TRAEFIK_LOG_DASHBOARD_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-dashboard-auth
+                  key: auth-token
+            - name: GOGC
+              value: {{ .Values.agent.go.gogc | quote }}
+            - name: GOMEMLIMIT
+              value: {{ .Values.agent.go.gomemlimit | quote }}
+          volumeMounts:
+            - name: traefik-logs
+              mountPath: /logs
+              readOnly: true
+            {{- if .Values.agent.persistence.enabled }}
+            - name: position-data
+              mountPath: /data
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /api/logs/status
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 120
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/logs/status
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          {{- with .Values.agent.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: traefik-logs
+          hostPath:
+            path: {{ .Values.agent.logHostPath }}
+            type: DirectoryOrCreate
+        {{- if .Values.agent.persistence.enabled }}
+        - name: position-data
+          persistentVolumeClaim:
+            claimName: agent-position-data
+        {{- end }}

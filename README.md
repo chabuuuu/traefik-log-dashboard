@@ -18,6 +18,8 @@
 <img width="1920" height="1440" alt="logs_dashboard" src="https://github.com/user-attachments/assets/ad535e44-d0f7-491e-be2f-de0a409597f6" />
 <img width="1920" height="1440" alt="filter_dashboard" src="https://github.com/user-attachments/assets/8412d9ce-e7df-404a-be66-d8639be0115d" />
 
+image.png
+
 ## Quick Start
 
 Get started in under 5 minutes with Docker Compose:
@@ -153,13 +155,40 @@ Open http://localhost:3000 in your browser.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AGENT_API_URL` | URL to agent API | Required |
-| `AGENT_API_TOKEN` | Authentication token (must match agent) | Required |
-| `AGENT_NAME` | Display name for the agent | `Environment Agent` |
-| `NEXT_PUBLIC_SHOW_DEMO_PAGE` | Show demo mode link | `true` |
-| `NEXT_PUBLIC_MAX_LOGS_DISPLAY` | Max logs in table | `500` |
+| `AGENT_1_URL` | First environment agent URL | Required (or `DASHBOARD_AGENTS_JSON`) |
+| `AGENT_1_TOKEN` | First environment agent token | Optional |
+| `AGENT_1_NAME` | First environment agent name | `Agent 1` |
+| `AGENT_2_URL`, `AGENT_3_URL`, ... | Additional environment agents | Optional |
+| `DASHBOARD_AGENTS_ENV_ONLY` | Disable UI/API agent mutations | `false` |
+| `DASHBOARD_REFRESH_INTERVAL_MS` | Refresh interval | `5000` |
+| `DASHBOARD_MAX_LOGS_DISPLAY` | Max logs retained in dashboard state | `1000` |
+| `DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT` | Top-N shown in Traffic lists | `10` |
+| `DASHBOARD_PARSER_TREND_WINDOW_MINUTES` | Parser sparkline trend window (15-30) | `30` |
+| `SHOW_DEMO_PAGE` | Show demo mode link | `true` |
+| `GEOIP_LOOKUP_ENABLED` | Enable dashboard GeoIP lookup API | `true` |
+| `GEOIP_PROVIDER_BASE_URL` | GeoIP provider base URL | `https://ipwho.is` |
+| `GEOIP_PROVIDER_URLS` | Comma-separated GeoIP provider fallback list | Uses `GEOIP_PROVIDER_BASE_URL` |
+| `GEOIP_LOCAL_DB_PATH` | Optional local MaxMind MMDB path | `""` (disabled) |
+| `GEOIP_UNKNOWN_CACHE_TTL_MS` | Cache TTL for unresolved lookups | `300000` |
 
-> **Note**: GeoIP is automatically handled by the dashboard using [geolite2-redist](https://www.npmjs.com/package/geolite2-redist). No configuration needed.
+Legacy fallback (still supported): `AGENT_API_URL`, `AGENT_API_TOKEN`, `AGENT_NAME`.
+
+> **GeoIP mode**: The dashboard uses a hybrid resolver chain:
+> 1) Optional local MMDB (`GEOIP_LOCAL_DB_PATH`)
+> 2) HTTP provider fallback (`GEOIP_PROVIDER_URLS` / `GEOIP_PROVIDER_BASE_URL`)
+
+Example production GeoIP configuration:
+
+```yaml
+services:
+  traefik-dashboard:
+    volumes:
+      - ./data/geoip:/geoip:ro
+    environment:
+      - GEOIP_LOCAL_DB_PATH=/geoip/GeoLite2-City.mmdb
+      - GEOIP_PROVIDER_URLS=https://ipwho.is,https://ip-api.com/json
+      - GEOIP_UNKNOWN_CACHE_TTL_MS=300000
+```
 
 ---
 

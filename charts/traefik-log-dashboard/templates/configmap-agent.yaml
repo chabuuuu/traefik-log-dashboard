@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "traefik-log-dashboard.agent.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.agent.service.port | quote }}
+  TRAEFIK_LOG_DASHBOARD_ACCESS_PATH: {{ .Values.agent.config.accessPath | quote }}
+  TRAEFIK_LOG_DASHBOARD_ERROR_PATH: {{ .Values.agent.config.errorPath | quote }}
+  TRAEFIK_LOG_DASHBOARD_LOG_FORMAT: {{ .Values.agent.config.logFormat | quote }}
+  TRAEFIK_LOG_DASHBOARD_SYSTEM_MONITORING: {{ .Values.agent.config.systemMonitoring | quote }}
+  TRAEFIK_LOG_DASHBOARD_MONITOR_INTERVAL: {{ .Values.agent.config.monitorInterval | quote }}
+  TRAEFIK_LOG_DASHBOARD_STREAM_BATCH_LINES: {{ .Values.agent.config.streamBatchLines | quote }}
+  TRAEFIK_LOG_DASHBOARD_STREAM_FLUSH_INTERVAL_MS: {{ .Values.agent.config.streamFlushIntervalMs | quote }}
+  TRAEFIK_LOG_DASHBOARD_STREAM_MAX_CLIENTS: {{ .Values.agent.config.streamMaxClients | quote }}
+  TRAEFIK_LOG_DASHBOARD_STREAM_MAX_DURATION_SEC: {{ .Values.agent.config.streamMaxDurationSec | quote }}
+  POSITION_FILE: {{ .Values.agent.config.positionFile | quote }}

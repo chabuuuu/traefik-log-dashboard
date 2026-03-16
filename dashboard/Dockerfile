@@ -1,81 +1,52 @@
-# ==============================================================================
-# Stage 1: Dependencies
-# ==============================================================================
-FROM node:20-alpine AS deps
+# Stage 1: Build the Vite application + server
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Copy package files first for better layer caching
+COPY package.json package-lock.json ./
 
-COPY package.json package-lock.json* ./
-RUN npm ci && npm cache clean --force
+# Install all dependencies (including dev for building)
+RUN npm ci
 
-# ==============================================================================
-# Stage 2: Builder
-# ==============================================================================
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Install build dependencies for native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++
-
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source code
 COPY . .
 
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
+# Accept build-time base path (defaults to /)
+ARG VITE_BASE_PATH=/
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 
+# Build client (Vite) and server (TypeScript)
 RUN npm run build
 
-# ==============================================================================
-# Stage 3: Runner (Production)
-# ==============================================================================
-FROM node:20-alpine AS runner
+# Stage 2: Production Node.js runtime
+FROM node:20-alpine
 
 WORKDIR /app
-
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-# Install only runtime dependencies
-RUN apk add --no-cache ca-certificates
+# Install only runtime server dependencies (no frontend bundle deps)
+COPY package.runtime.json ./package.json
+RUN npm install --omit=dev --omit=optional --no-audit --no-fund \
+  && npm cache clean --force
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nodejs
+# Copy built client assets
+COPY --from=build /app/dist ./dist
 
-# Copy ONLY the standalone build (includes all dependencies)
-COPY --from=builder --chown=nodejs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nodejs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nodejs:nodejs /app/public ./public
+# Copy built server
+COPY --from=build /app/dist-server ./dist-server
 
-# GeoIP: geolite2-redist downloads databases on first use (lazy loading)
-# Create geoip directory for runtime database storage
-RUN mkdir -p /app/geoip && chown nodejs:nodejs /app/geoip
-
-# CRITICAL: Copy geolite2-redist package from builder since standalone doesn't include it fully
-# This package needs its full structure to download GeoLite2 databases at runtime
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules/geolite2-redist ./node_modules/geolite2-redist
-
-# Create the directories geolite2-redist needs for database downloads
-RUN mkdir -p /app/node_modules/geolite2-redist/dbs-tmp && \
-    mkdir -p /app/node_modules/geolite2-redist/dbs && \
-    chown -R nodejs:nodejs /app/node_modules/geolite2-redist
-
-# Copy entrypoint script
-COPY --chown=nodejs:nodejs docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Copy entrypoint
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Create data directory for SQLite
-RUN mkdir -p /app/data && chown -R nodejs:nodejs /app/data
-
-USER nodejs
+RUN mkdir -p /data
 
 EXPOSE 3000
 
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "server.js"]
+ENV PORT=3000
+ENV DATA_DIR=/data
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["node", "dist-server/index.js"]

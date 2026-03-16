@@ -39,7 +39,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card';
 ### Geographic Features
 
 <Callout title="Automatic GeoIP" type="success">
-Geographic features work automatically! The dashboard uses [geolite2-redist](https://www.npmjs.com/package/geolite2-redist) which auto-downloads MaxMind GeoLite2 databases.
+Geographic features use a hybrid resolver chain: optional local MMDB first, then HTTP providers as fallback.
 </Callout>
 
 - **Country-level Mapping**: Track requests by country with ISO codes

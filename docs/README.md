@@ -1,45 +1,128 @@
-# docs
+# Traefik Log Dashboard Documentation
 
-This is a Next.js application generated with
-[Create Fumadocs](https://github.com/fuma-nama/fumadocs).
+Official documentation for Traefik Log Dashboard, built with [Fumadocs](https://fumadocs.dev/).
 
-Run development server:
+##  Quick Start
+
+### Development
 
 ```bash
+npm install
 npm run dev
-# or
-pnpm dev
-# or
-yarn dev
 ```
 
-Open http://localhost:3000 with your browser to see the result.
+Open http://localhost:3000 to view the documentation.
 
-## Explore
+Set `SITE_URL` in your environment for canonical URLs, Open Graph metadata, and sitemap host values in production.
 
-In the project, you can see:
+### Production Build
 
-- `lib/source.ts`: Code for content source adapter, [`loader()`](https://fumadocs.dev/docs/headless/source-api) provides the interface to access your content.
-- `lib/layout.shared.tsx`: Shared options for layouts, optional but preferred to keep.
+```bash
+npm run build
+npm run start
+```
 
-| Route                     | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `app/(home)`              | The route group for your landing page and other pages. |
-| `app/docs`                | The documentation layout and pages.                    |
-| `app/api/search/route.ts` | The Route Handler for search.                          |
+##  Structure
 
-### Fumadocs MDX
+```
+docs/
+├── app/
+│   ├── (home)/              # Landing page
+│   ├── docs/                # Documentation pages
+│   └── api/                 # API routes (search, etc.)
+├── content/docs/            # MDX documentation files
+│   ├── index.mdx           # Introduction
+│   ├── quickstart.mdx      # Quick start guide
+│   ├── features.mdx        # Features overview
+│   ├── usage.mdx           # Usage guide
+│   ├── troubleshooting.mdx # Troubleshooting
+│   ├── changelog.mdx       # Release notes
+│   ├── components/         # Component docs (agent, cli, dashboard)
+│   └── configuration/      # Configuration docs (env vars, settings)
+├── lib/                     # Source configuration
+└── public/                  # Static assets
+```
 
-A `source.config.ts` config file has been included, you can customise different options like frontmatter schema.
+##  Writing Documentation
 
-Read the [Introduction](https://fumadocs.dev/docs/mdx) for further details.
+### Creating Pages
 
-## Learn More
+Create MDX files in `content/docs/`:
 
-To learn more about Next.js and Fumadocs, take a look at the following
-resources:
+```mdx
+---
+title: Page Title
+description: SEO description
+icon: IconName  # Lucide icon
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js
-  features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [Fumadocs](https://fumadocs.dev) - learn about Fumadocs
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Content Here
+
+<Callout type="info">
+Important note
+</Callout>
+```
+
+### Available Components
+
+- **Callouts**: `<Callout type="info|warn|error|success">`
+- **Steps**: `<Steps>` and `<Step>`
+- **Tabs**: `<Tabs>` and `<Tab>`
+- **Cards**: `<Cards>` and `<Card>`
+- **Code blocks**: ` ```language title="filename" `
+
+### Icons
+
+Use [Lucide icons](https://lucide.dev/) in frontmatter:
+
+```mdx
+---
+icon: Home
+---
+```
+
+## 🔍 Features
+
+- Full-text search
+- Dark mode
+- Mobile responsive
+- Mermaid diagrams
+- Syntax highlighting
+- Auto-generated navigation
+- SEO metadata defaults with canonical URLs
+- Auto-generated `sitemap.xml` and `robots.txt`
+
+##  Deployment
+
+Deploy to Vercel, Netlify, or any static hosting:
+
+```bash
+npm run build
+```
+
+Output in `.next/` directory.
+
+### Alert worker (self-hosted)
+
+- Start the headless scheduler without opening the UI: `npm run alert-worker` (honors `ENABLE_BACKGROUND_SCHEDULER`; default is on).
+- Optional cron trigger: POST to `/api/services/trigger-alerts` with header `x-cron-secret: $CRON_SECRET` when `CRON_SECRET` is set.
+- Check status at `/api/services/status` to confirm scheduler `isRunning`, `lastRunTime`, and `runCount`.
+- Ensure agents are configured (env or DB) so the worker can fetch logs and build snapshots for daily/12h summaries.
+
+##  Testing
+
+```bash
+# Type checking
+npm run types:check
+
+# Build test
+npm run build
+```
+
+##  Learn More
+
+- [Fumadocs Documentation](https://fumadocs.dev/)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [MDX Documentation](https://mdxjs.com/)

@@ -226,6 +226,55 @@ func TestSystemResourcesDisabled(t *testing.T) {
 	}
 }
 
+func TestLegacyRouteAliases(t *testing.T) {
+	cfg := &config.Config{
+		AccessPath:       "/tmp/test-access.log",
+		ErrorPath:        "/tmp/test-error.log",
+		AuthToken:        "",
+		SystemMonitoring: true,
+		MonitorInterval:  2000,
+		Port:             "5000",
+	}
+
+	sm := state.NewStateManager(cfg)
+	handler := routes.NewHandler(cfg, sm)
+	authenticator := auth.NewAuthenticator(cfg.AuthToken)
+	chain := middleware.Chain(
+		middleware.Recovery(),
+		middleware.SecurityHeaders(),
+		middleware.RateLimit(cfg.RateLimitRPM),
+		middleware.MaliciousPatternScanner(),
+		middleware.Logger(),
+		middleware.CORS(middleware.DefaultCORSConfig()),
+	)
+
+	mux := http.NewServeMux()
+	registerRoutes(mux, chain, handler, authenticator)
+
+	testCases := []struct {
+		name string
+		path string
+	}{
+		{name: "legacy stream path", path: "/stream"},
+		{name: "legacy resources path", path: "/resources"},
+		{name: "canonical stream path", path: "/api/logs/stream"},
+		{name: "canonical resources path", path: "/api/system/resources"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodOptions, tc.path, nil)
+			w := httptest.NewRecorder()
+
+			mux.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("Expected status 200 for %s, got %d", tc.path, w.Code)
+			}
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	// Setup: Create test log files
 	os.WriteFile("/tmp/test-access.log", []byte("test log\n"), 0644)
@@ -234,7 +283,7 @@ func TestMain(m *testing.M) {
 	// Run tests
 	code := m.Run()
 
-	// Cleanup: Remove test log files
+	// Cleanup: Remove test files
 	os.Remove("/tmp/test-access.log")
 	os.Remove("/tmp/test-error.log")
 

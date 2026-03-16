@@ -20,8 +20,6 @@ services:
       # System Monitoring
       - TRAEFIK_LOG_DASHBOARD_SYSTEM_MONITORING=true
 
-      # REFACTOR: GeoIP removed - Dashboard handles GeoIP locally
-
       # Log Format
       - TRAEFIK_LOG_DASHBOARD_LOG_FORMAT=json
 
@@ -29,43 +27,53 @@ services:
       - PORT=5000
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/logs/status"]
-      interval: 2m  # PERFORMANCE FIX: Increased from 30s to 2min to reduce load
+      interval: 2m
       timeout: 10s
       retries: 3
-      start_period: 30s  # Increased to allow agent to fully start
+      start_period: 30s
     networks:
       - traefik-network
 
-  # Traefik Log Dashboard - Next.js web UI
+  # Traefik Log Dashboard - Node.js + Vite SPA
   traefik-dashboard:
     image: hhftechnology/traefik-log-dashboard:dev-dashboard
     container_name: traefik-log-dashboard
     restart: unless-stopped
-    user: "1001:1001"
     ports:
       - "3000:3000"
     volumes:
-      - ./data/dashboard:/app/data
+      - dashboard-data:/data
+      # Optional: mount local GeoIP MMDB for highest lookup reliability
+      # - ./data/geoip:/geoip:ro
     environment:
-      # Agent Configuration - REPLACE WITH YOUR TOKEN
-      - AGENT_API_URL=http://traefik-agent:5000
-      - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
-      - AGENT_NAME=Default Agent
+      # Environment-managed agents (supports AGENT_1_*, AGENT_2_*, ...)
+      - AGENT_1_NAME=Primary Agent
+      - AGENT_1_URL=http://traefik-agent:5000
+      - AGENT_1_TOKEN=d41d8cd98f00b204e9800998ecf8427e
+      # Optional second agent example:
+      # - AGENT_2_NAME=Staging Agent
+      # - AGENT_2_URL=http://traefik-agent-staging:5000
+      # - AGENT_2_TOKEN=another-token
 
-      # Node Environment
-      - NODE_ENV=production
-      - PORT=3000
+      # Lock agent configuration to environment-only mode
+      - DASHBOARD_AGENTS_ENV_ONLY=true
 
-      # Display Configuration
-      - NEXT_PUBLIC_SHOW_DEMO_PAGE=true
-      - NEXT_PUBLIC_MAX_LOGS_DISPLAY=500
+      # Dashboard behavior
+      - DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT=25
+      - DASHBOARD_PARSER_TREND_WINDOW_MINUTES=30
 
-      # GeoIP: Auto-downloaded by geolite2-redist, no config needed
+      # GeoIP resolver chain (local MMDB -> HTTP providers)
+      # - GEOIP_LOCAL_DB_PATH=/geoip/GeoLite2-City.mmdb
+      - GEOIP_PROVIDER_URLS=https://ipwho.is,https://ip-api.com/json
+      - GEOIP_UNKNOWN_CACHE_TTL_MS=300000
     depends_on:
       traefik-agent:
         condition: service_healthy
     networks:
       - traefik-network
+
+volumes:
+  dashboard-data:
 
 networks:
   traefik-network:

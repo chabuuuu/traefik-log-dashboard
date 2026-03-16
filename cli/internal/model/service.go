@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hhftechnology/traefik-log-dashboard/cli/internal/logs"
@@ -28,7 +29,7 @@ func (s *LogService) FetchAccessLogs(maxLogs int) ([]logs.TraefikLog, error) {
 		return logs.GenerateDemoLogs(maxLogs), nil
 	}
 
-	accessLogs, err := logs.FetchAccessLogs(s.agentURL, s.authToken, maxLogs)
+	accessLogs, err := logs.FetchAccessLogs(context.Background(), s.agentURL, s.authToken, maxLogs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch access logs: %w", err)
 	}
@@ -37,12 +38,12 @@ func (s *LogService) FetchAccessLogs(maxLogs int) ([]logs.TraefikLog, error) {
 }
 
 // FetchErrorLogs fetches error logs from agent or generates demo data
-func (s *LogService) FetchErrorLogs(maxLogs int) ([]string, error) {
+func (s *LogService) FetchErrorLogs(maxLogs int) ([]logs.TraefikLog, error) {
 	if s.demoMode {
 		return generateDemoErrorLogs(maxLogs), nil
 	}
 
-	errorLogs, err := logs.FetchErrorLogs(s.agentURL, s.authToken, maxLogs)
+	errorLogs, err := logs.FetchErrorLogs(context.Background(), s.agentURL, s.authToken, maxLogs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch error logs: %w", err)
 	}
@@ -56,7 +57,7 @@ func (s *LogService) FetchSystemStats() (*logs.SystemStats, error) {
 		return generateDemoSystemStats(), nil
 	}
 
-	stats, err := logs.FetchSystemStats(s.agentURL, s.authToken)
+	stats, err := logs.FetchSystemStats(context.Background(), s.agentURL, s.authToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch system stats: %w", err)
 	}
@@ -74,7 +75,7 @@ func (s *LogService) FetchAllData(maxAccessLogs, maxErrorLogs int) (*AllData, er
 	errorLogs, err := s.FetchErrorLogs(maxErrorLogs)
 	if err != nil {
 		// Don't fail if error logs can't be fetched
-		errorLogs = []string{}
+		errorLogs = []logs.TraefikLog{}
 	}
 
 	var systemStats *logs.SystemStats
@@ -97,32 +98,32 @@ func (s *LogService) FetchAllData(maxAccessLogs, maxErrorLogs int) (*AllData, er
 // AllData holds all fetched data
 type AllData struct {
 	AccessLogs  []logs.TraefikLog
-	ErrorLogs   []string
+	ErrorLogs   []logs.TraefikLog
 	Metrics     *logs.Metrics
 	SystemStats *logs.SystemStats
 }
 
 // generateDemoErrorLogs generates demo error logs
-func generateDemoErrorLogs(count int) []string {
-	demoErrors := []string{
-		"2025-10-03T10:30:00Z ERROR Unable to reach backend service",
-		"2025-10-03T10:29:45Z WARN Slow response from upstream: 2500ms",
-		"2025-10-03T10:29:30Z ERROR Connection timeout to backend-service",
-		"2025-10-03T10:29:15Z WARN Rate limit exceeded for client 192.168.1.100",
-		"2025-10-03T10:29:00Z ERROR Certificate validation failed",
-		"2025-10-03T10:28:45Z INFO Router configuration reloaded",
-		"2025-10-03T10:28:30Z ERROR Database connection pool exhausted",
-		"2025-10-03T10:28:15Z WARN High memory usage detected: 85%",
-		"2025-10-03T10:28:00Z ERROR Failed to authenticate request",
-		"2025-10-03T10:27:45Z WARN Middleware timeout: custom-auth-middleware",
+func generateDemoErrorLogs(count int) []logs.TraefikLog {
+	if count <= 0 {
+		return []logs.TraefikLog{}
 	}
 
-	result := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		result = append(result, demoErrors[i%len(demoErrors)])
+	demoLogs := logs.GenerateDemoLogs(count)
+	for i := range demoLogs {
+		switch i % 4 {
+		case 0:
+			demoLogs[i].DownstreamStatus = 500
+		case 1:
+			demoLogs[i].DownstreamStatus = 502
+		case 2:
+			demoLogs[i].DownstreamStatus = 503
+		default:
+			demoLogs[i].DownstreamStatus = 404
+		}
 	}
 
-	return result
+	return demoLogs
 }
 
 // generateDemoSystemStats generates demo system statistics

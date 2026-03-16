@@ -1,10 +1,12 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
+import { GITHUB_URL, SITE_NAME } from '@/lib/site';
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: 'Traefik Log Dashboard',
+      title: SITE_NAME,
+      transparentMode: 'always',
     },
-    githubUrl: 'https://github.com/hhftechnology/traefik-log-dashboard',
+    githubUrl: GITHUB_URL,
   };
 }

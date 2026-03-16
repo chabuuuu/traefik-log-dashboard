@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,28 +20,28 @@ const (
 
 // Model represents the application state
 type Model struct {
-	cfg             *config.Config
-	currentView     ViewMode
-	width           int
-	height          int
-	
+	cfg         *config.Config
+	currentView ViewMode
+	width       int
+	height      int
+
 	// Data
-	accessLogs      []logs.TraefikLog
-	errorLogs       []string
-	metrics         *logs.Metrics
-	systemStats     *logs.SystemStats
-	
+	accessLogs  []logs.TraefikLog
+	errorLogs   []logs.TraefikLog
+	metrics     *logs.Metrics
+	systemStats *logs.SystemStats
+
 	// State
-	loading         bool
-	err             error
-	lastUpdate      time.Time
-	selectedIndex   int
-	
+	loading       bool
+	err           error
+	lastUpdate    time.Time
+	selectedIndex int
+
 	// Navigation
-	activeTab       int
-	
+	activeTab int
+
 	// Flags
-	quitting        bool
+	quitting bool
 }
 
 // NewModel creates a new Model
@@ -69,17 +70,21 @@ func (m Model) tick() tea.Cmd {
 	})
 }
 
-// fetchData fetches all data from the agent
+// fetchData fetches all data from the agent. Each invocation uses
+// context.Background() because BubbleTea commands run in detached goroutines
+// with no parent context. Cancellation is handled by the Quit command.
 func (m Model) fetchData() tea.Cmd {
 	return func() tea.Msg {
+		ctx := context.Background()
+
 		// Fetch access logs
-		accessLogs, err := logs.FetchAccessLogs(m.cfg.AgentURL, m.cfg.AuthToken, m.cfg.MaxLogs)
+		accessLogs, err := logs.FetchAccessLogs(ctx, m.cfg.AgentURL, m.cfg.AuthToken, m.cfg.MaxLogs)
 		if err != nil {
 			return errMsg{err}
 		}
 
 		// Fetch error logs
-		errorLogs, err := logs.FetchErrorLogs(m.cfg.AgentURL, m.cfg.AuthToken, 100)
+		errorLogs, err := logs.FetchErrorLogs(ctx, m.cfg.AgentURL, m.cfg.AuthToken, 100)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -90,7 +95,7 @@ func (m Model) fetchData() tea.Cmd {
 		// Fetch system stats if enabled
 		var systemStats *logs.SystemStats
 		if m.cfg.SystemMonitoring {
-			systemStats, _ = logs.FetchSystemStats(m.cfg.AgentURL, m.cfg.AuthToken)
+			systemStats, _ = logs.FetchSystemStats(ctx, m.cfg.AgentURL, m.cfg.AuthToken)
 		}
 
 		return dataMsg{

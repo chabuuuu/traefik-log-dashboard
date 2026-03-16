@@ -41,9 +41,13 @@ npm install
 Create a `.env.local` file in the dashboard directory:
 
 ```env
-# Agent API Configuration
-AGENT_API_URL=http://localhost:5000
-AGENT_API_TOKEN=your_secret_token_here
+# Agent configuration (env-managed)
+AGENT_1_NAME=Local Agent
+AGENT_1_URL=http://localhost:5000
+AGENT_1_TOKEN=your_secret_token_here
+
+# Optional: lock agent config to env-only mode
+DASHBOARD_AGENTS_ENV_ONLY=true
 ```
 
 ## Development
@@ -82,8 +86,8 @@ Run the container:
 
 ```bash
 docker run -p 3000:3000 \
-  -e AGENT_API_URL=http://agent:5000 \
-  -e AGENT_API_TOKEN=your_token \
+  -e AGENT_1_URL=http://agent:5000 \
+  -e AGENT_1_TOKEN=your_token \
   traefik-log-dashboard
 ```
 
@@ -198,8 +202,8 @@ The dashboard supports dark mode through Tailwind CSS. Customize colors in `tail
 ### Connection Error
 
 If you see "Connection Error", ensure:
-1. The agent is running at the configured `AGENT_API_URL`
-2. The agent authentication token matches `AGENT_API_TOKEN`
+1. The agent is running at the configured `AGENT_1_URL` (or equivalent configured env agent URL)
+2. The agent authentication token matches `AGENT_1_TOKEN` (or the corresponding env token)
 3. Network connectivity between dashboard and agent
 
 ### No Data

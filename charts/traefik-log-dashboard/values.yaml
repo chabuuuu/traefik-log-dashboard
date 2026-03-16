@@ -1,0 +1,113 @@
+# -- Namespace to deploy into (created if createNamespace is true)
+namespace: traefik-dashboard
+createNamespace: true
+
+# -- Shared auth token (generate with: openssl rand -hex 32)
+auth:
+  token: "REPLACE_WITH_YOUR_TOKEN"
+
+# ================================
+# Agent (Go backend)
+# ================================
+agent:
+  image:
+    repository: hhftechnology/traefik-log-dashboard-agent
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 5000
+
+  # -- Path on the K8s node where Traefik writes logs
+  logHostPath: /var/log/traefik
+
+  persistence:
+    enabled: true
+    size: 64Mi
+    storageClass: "" # empty = default storage class
+
+  config:
+    accessPath: /logs/access.log
+    errorPath: /logs/traefik.log
+    logFormat: json
+    systemMonitoring: "true"
+    monitorInterval: "2000"
+    streamBatchLines: "400"
+    streamFlushIntervalMs: "1000"
+    streamMaxClients: "50"
+    streamMaxDurationSec: "300"
+    positionFile: /data/.position
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  go:
+    gogc: "50"
+    gomemlimit: "500MiB"
+
+# ================================
+# Dashboard (Node.js frontend)
+# ================================
+dashboard:
+  image:
+    repository: hhftechnology/traefik-log-dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+
+  config:
+    agentName: "Primary Agent"
+    agentsEnvOnly: "true"
+    refreshIntervalMs: "5000"
+    maxLogsDisplay: "1000"
+    trafficTopItemsLimit: "25"
+    parserTrendWindowMinutes: "30"
+    showDemoPage: "false"
+    geoipEnabled: "true"
+    geoipProviderUrls: "https://ipwho.is,https://ip-api.com/json"
+    geoipTimeoutMs: "3500"
+    geoipMaxIps: "256"
+    geoipCacheTtlMs: "3600000"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ================================
+# Ingress (Traefik IngressRoute)
+# ================================
+ingress:
+  enabled: true
+  host: traefik-dashboard.example.com
+  entryPoints:
+    - websecure
+  tls:
+    enabled: true
+    certResolver: letsencrypt

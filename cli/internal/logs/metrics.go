@@ -3,6 +3,7 @@ package logs
 import (
 	"math"
 	"sort"
+	"time"
 )
 
 // Metrics represents calculated metrics from logs
@@ -83,6 +84,19 @@ func CalculateMetrics(logs []TraefikLog) *Metrics {
 	metrics.P95ResponseTime = percentile(durations, 95)
 	metrics.P99ResponseTime = percentile(durations, 99)
 
+	// Calculate requests per second from the time range of the log window.
+	// We use the first and last StartUTC timestamps to determine the span.
+	if len(logs) > 1 {
+		earliest := parseTimestamp(logs[0].StartUTC)
+		latest := parseTimestamp(logs[len(logs)-1].StartUTC)
+		if !earliest.IsZero() && !latest.IsZero() {
+			durationSec := latest.Sub(earliest).Seconds()
+			if durationSec > 0 {
+				metrics.RequestsPerSec = float64(len(logs)) / durationSec
+			}
+		}
+	}
+
 	// Calculate top routes
 	metrics.TopRoutes = calculateTopRoutes(logs, 10)
 
@@ -93,6 +107,23 @@ func CalculateMetrics(logs []TraefikLog) *Metrics {
 	metrics.TopRouters = calculateTopRouters(logs, 10)
 
 	return metrics
+}
+
+// parseTimestamp attempts to parse a timestamp string using the common formats
+// produced by Traefik. It returns the zero time.Time if no format matches.
+func parseTimestamp(s string) time.Time {
+	formats := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000000Z",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 // calculateTopRoutes calculates top routes by request count

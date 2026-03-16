@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-config
+  namespace: traefik-dashboard
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: traefik-log-dashboard
+data:
+  PORT: "3000"
+  DATA_DIR: "/data"
+  AGENT_1_NAME: "Primary Agent"
+  AGENT_1_URL: "http://traefik-agent:5000"
+  DASHBOARD_AGENTS_ENV_ONLY: "true"
+  DASHBOARD_REFRESH_INTERVAL_MS: "5000"
+  DASHBOARD_MAX_LOGS_DISPLAY: "1000"
+  DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT: "25"
+  DASHBOARD_PARSER_TREND_WINDOW_MINUTES: "30"
+  SHOW_DEMO_PAGE: "false"
+  GEOIP_LOOKUP_ENABLED: "true"
+  GEOIP_PROVIDER_URLS: "https://ipwho.is,https://ip-api.com/json"
+  GEOIP_LOOKUP_TIMEOUT_MS: "3500"
+  GEOIP_LOOKUP_MAX_IPS: "256"
+  GEOIP_LOOKUP_CACHE_TTL_MS: "3600000"

@@ -1,6 +1,9 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+)
 
 // CORSConfig holds CORS configuration options
 type CORSConfig struct {
@@ -9,10 +12,16 @@ type CORSConfig struct {
 	AllowHeaders string
 }
 
-// DefaultCORSConfig returns a permissive CORS configuration suitable for development
+// DefaultCORSConfig returns a CORS configuration. The allowed origin can be
+// controlled via the CORS_ALLOW_ORIGIN environment variable; it falls back to
+// "*" when the variable is unset or empty.
 func DefaultCORSConfig() CORSConfig {
+	origin := os.Getenv("CORS_ALLOW_ORIGIN")
+	if origin == "" {
+		origin = "*"
+	}
 	return CORSConfig{
-		AllowOrigin:  "*",
+		AllowOrigin:  origin,
 		AllowMethods: "GET, POST, OPTIONS",
 		AllowHeaders: "Content-Type, Authorization",
 	}
