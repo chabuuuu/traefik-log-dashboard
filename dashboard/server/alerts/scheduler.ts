@@ -294,7 +294,7 @@ async function fetchRecentAgentLogs(input: FetchAgentLogsInput): Promise<AgentLo
     }
 
     const response = await fetch(
-      `${normalizeAgentURL(input.agent)}/api/logs/access?position=0&lines=${getFetchLines()}`,
+      `${normalizeAgentURL(input.agent)}/api/logs/access?position=-1&lines=${getFetchLines()}`,
       {
         method: 'GET',
         headers,
