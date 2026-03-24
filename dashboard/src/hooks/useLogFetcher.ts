@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'; // eslint-disable-line no-restricted-syntax
 import { TraefikLog } from '@/utils/types';
 import { enrichLogsWithGeoLocation } from '@/utils/location';
 import { apiClient } from '@/utils/api-client';
@@ -8,7 +8,7 @@ import { getNextLogCursor } from '@/utils/utils/log-cursor';
 import { useConfig } from '@/utils/contexts/ConfigContext';
 import { useAgents } from '@/utils/contexts/AgentContext';
 import { logStore } from '@/utils/stores/log-store';
-import { saveLogsToIDB, loadLogsFromIDB, clearLogsFromIDB } from '@/utils/stores/log-persistence';
+import { saveLogsToIDB, loadLogsFromIDB } from '@/utils/stores/log-persistence';
 
 const STREAM_BATCH_SIZE = 250;
 const STREAM_FLUSH_INTERVAL = 350;
@@ -59,6 +59,7 @@ export function useLogFetcher() {
 
   const isTabVisible = useTabVisibility();
 
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     const selectedAgentID = selectedAgent?.id;
     const selectedAgentName = selectedAgent?.name ?? null;
@@ -357,6 +358,7 @@ export function useLogFetcher() {
   }, [config.refreshIntervalMs, isPaused, isTabVisible, selectedAgent?.id, selectedAgent?.name, storeState.resetTrigger]);
 
   // Trim logs when maxLogsDisplay config changes
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     logStore.trimLogs(maxLogsDisplay);
   }, [maxLogsDisplay]);

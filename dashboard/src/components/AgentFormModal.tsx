@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // eslint-disable-line no-restricted-syntax
 import { Agent } from '@/utils/types/agent';
 import { useAgents } from '@/utils/contexts/AgentContext';
 import { AgentConfigManager } from '@/utils/agent-config-manager';
@@ -25,6 +25,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
     tags: '',
   });
 
+  // eslint-disable-next-line no-restricted-syntax -- form reset on prop change
   useEffect(() => {
     if (agent) {
       setFormData({

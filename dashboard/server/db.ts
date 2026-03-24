@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { randomUUID } from 'crypto';
 
 export interface DBAgent {
   id: string;

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'; // eslint-disable-line no-restricted-syntax
+import { useMountEffect } from '@/hooks/useMountEffect';
 
 export interface DashboardConfig {
   basePath: string;
@@ -88,7 +89,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     error: null,
   });
 
-  useEffect(() => {
+  useMountEffect(() => {
     let isMounted = true;
     const inlineConfig = getInlineConfig();
 
@@ -121,8 +122,9 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  });
 
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const tokens = state.config.themeTokens;

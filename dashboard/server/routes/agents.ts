@@ -6,7 +6,6 @@ import {
   updateAgent,
   deleteAgent,
   getSelectedAgent,
-  getSelectedAgentId,
   setSelectedAgentId,
   bulkImportAgents,
   isEnvOnlyAgentsMode,

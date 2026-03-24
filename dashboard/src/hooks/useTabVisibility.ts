@@ -3,7 +3,8 @@
  * Consolidates duplicate visibility listener patterns across hooks
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useMountEffect } from '@/hooks/useMountEffect';
 
 /**
  * Hook to track whether the browser tab is currently visible
@@ -17,14 +18,14 @@ export function useTabVisibility(): boolean {
     return !document.hidden;
   });
 
-  useEffect(() => {
+  useMountEffect(() => {
     const handleVisibilityChange = () => {
       setIsTabVisible(!document.hidden);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  });
 
   return isTabVisible;
 }

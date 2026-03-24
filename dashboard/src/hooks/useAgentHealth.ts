@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react'; // eslint-disable-line no-restricted-syntax
 import { Agent } from '@/utils/types/agent';
 import { useAgents } from '@/utils/contexts/AgentContext';
 import { useTabVisibility } from './useTabVisibility';
@@ -44,10 +44,12 @@ export function useAgentHealth(options: HealthMonitorOptions = {}) {
   const isTabVisible = useTabVisibility();
 
   // Update refs when values change
+  // eslint-disable-next-line no-restricted-syntax -- ref sync requires dependency tracking
   useEffect(() => {
     healthMetricsRef.current = healthMetrics;
   }, [healthMetrics]);
 
+  // eslint-disable-next-line no-restricted-syntax -- ref sync requires dependency tracking
   useEffect(() => {
     onStatusChangeRef.current = onStatusChange;
   }, [onStatusChange]);
@@ -179,6 +181,7 @@ export function useAgentHealth(options: HealthMonitorOptions = {}) {
   }, [agents, checkSingleAgent]); // Removed healthMetrics from dependencies
 
   // MEMORY LEAK FIX: Auto-check setup with proper dependencies and visibility check
+  // eslint-disable-next-line no-restricted-syntax -- interval setup requires dependency tracking
   useEffect(() => {
     if (!enableAutoCheck || agents.length === 0 || !isTabVisible) return;
 

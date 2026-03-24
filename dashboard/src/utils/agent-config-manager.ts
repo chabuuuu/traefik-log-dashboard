@@ -153,7 +153,7 @@ export class AgentConfigManager {
   /**
    * Update agent status
    */
-  static updateAgentStatus(id: string, online: boolean, _error?: string): void {
+  static updateAgentStatus(id: string, online: boolean): void {
     this.updateAgent(id, {
       status: online ? 'online' : 'offline',
       lastSeen: online ? new Date() : undefined,

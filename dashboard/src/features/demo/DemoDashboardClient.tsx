@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react'; // eslint-disable-line no-restricted-syntax
 import { Loader2 } from 'lucide-react';
 import DashboardWithFilters from '@/components/dashboard/DashboardWithFilters';
 import { DashboardShell } from '@/components/layout/DashboardShell';
@@ -14,6 +14,7 @@ export default function DemoDashboardClient() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
+  // eslint-disable-next-line no-restricted-syntax -- demo data generation with interval
   useEffect(() => {
     const initialLogs = generateTimeSeriesLogs(60, 10);
     setLogs(initialLogs);

@@ -1,5 +1,5 @@
 // Custom hook for client-side alert evaluation on metrics changes.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react'; // eslint-disable-line no-restricted-syntax
 import { DashboardMetrics } from '@/utils/types';
 import { useConfig } from '@/utils/contexts/ConfigContext';
 import { evaluateAlerts } from '@/utils/alert-engine';
@@ -36,6 +36,7 @@ export function useMetricsProcessing(
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedRef = useRef<string>('');
 
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);

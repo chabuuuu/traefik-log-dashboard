@@ -1,9 +1,10 @@
 // dashboard/lib/contexts/FilterContext.tsx
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'; // eslint-disable-line no-restricted-syntax
 import { FilterSettings, FilterCondition, defaultFilterSettings } from '../types/filter';
 import { useConfig } from './ConfigContext';
+import { useMountEffect } from '@/hooks/useMountEffect';
 
 function isDuplicateCondition(existing: FilterCondition, candidate: FilterCondition): boolean {
   return (
@@ -46,7 +47,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
 
   // Load settings from localStorage on mount
   // BEST PRACTICE FIX: Wrap localStorage operations in try-catch for private browsing mode
-  useEffect(() => {
+  useMountEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -71,8 +72,9 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setHydrated(true);
     }
-  }, []);
+  });
 
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (!hydrated || configLoading || hideInternalTrafficInitializedRef.current) return;
 
@@ -85,6 +87,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
 
   // Save settings to localStorage whenever they change
   // BEST PRACTICE FIX: Wrap localStorage operations in try-catch
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (!hydrated || !hideInternalTrafficInitializedRef.current) return;
     try {
@@ -98,7 +101,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
       }
       // Continue without saving - settings will persist in memory for this session
     }
-  }, [settings]);
+  }, [settings]); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally omits hydrated to avoid saving during hydration
 
   // PERFORMANCE FIX: Memoize callback functions to prevent unnecessary re-renders
   const updateSettings = useCallback((newSettings: Partial<FilterSettings>) => {

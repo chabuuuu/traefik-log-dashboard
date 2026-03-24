@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react'; // eslint-disable-line no-restricted-syntax
 import { apiClient } from '@/utils/api-client';
 import { ParserMetrics, StatusResponse } from '@/utils/types';
 import { useTabVisibility } from './useTabVisibility';
@@ -70,6 +70,7 @@ export function useAgentStatus(input: UseAgentStatusInput): UseAgentStatusResult
   const [parserTrend, setParserTrend] = useState<ParserRatioTrendPoint[]>([]);
   const previousParserMetricsRef = useRef<ParserMetrics | null>(null);
 
+  // eslint-disable-next-line no-restricted-syntax -- state reset on agentId/demoMode change
   useEffect(() => {
     setStatus(null);
     setError(null);
@@ -81,6 +82,7 @@ export function useAgentStatus(input: UseAgentStatusInput): UseAgentStatusResult
     }
   }, [agentId, demoMode]);
 
+  // eslint-disable-next-line no-restricted-syntax -- polling interval with dependency tracking
   useEffect(() => {
     if (demoMode || !agentId) {
       return;

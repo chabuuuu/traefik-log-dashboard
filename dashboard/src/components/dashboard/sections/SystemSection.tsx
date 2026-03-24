@@ -262,7 +262,6 @@ function SystemSection({ systemStats, parserMetrics, parserTrend, statusLoading,
   const diskPercent = stats.disk.used_percent;
 
   // Overall health
-  const worstMetric = Math.max(cpuPercent, memoryPercent, diskPercent);
   const healthyCount = [cpuPercent, memoryPercent, diskPercent].filter(p => p < 75).length;
   const warningCount = [cpuPercent, memoryPercent, diskPercent].filter(p => p >= 75 && p < 90).length;
   const criticalCount = [cpuPercent, memoryPercent, diskPercent].filter(p => p >= 90).length;

@@ -33,6 +33,7 @@ export function LogProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => logFetcherState,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally uses individual fields for granular memoization
     [
       logFetcherState.logs,
       logFetcherState.loading,

@@ -157,6 +157,7 @@ function buildSearchUrl({
 function useDebounce<T>(value: T, delay: number = 300) {
     const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
 
+    // eslint-disable-next-line no-restricted-syntax -- debounce requires dependency tracking
     React.useEffect(() => {
         const timer = setTimeout(() => setDebouncedValue(value), delay)
         return () => clearTimeout(timer)
@@ -179,6 +180,7 @@ function usePlaceSearch({
 
     const debouncedQuery = useDebounce(query, debounceMs)
 
+    // eslint-disable-next-line no-restricted-syntax -- search on debounced query change
     React.useEffect(() => {
         if (!debouncedQuery.trim()) {
             setResults([])
@@ -271,6 +273,7 @@ function PlaceAutocomplete({
         locationBiasScale,
     })
 
+    // eslint-disable-next-line no-restricted-syntax -- notify parent on results change
     React.useEffect(() => {
         onResultsChange?.(results)
     }, [results, onResultsChange])

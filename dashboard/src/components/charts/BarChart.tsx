@@ -76,7 +76,7 @@ function BarChart({ labels, datasets, height = 300 }: BarChartProps) {
         {datasets.length > 1 && (
           <ChartLegend content={<ChartLegendContent />} />
         )}
-        {datasets.map((dataset, idx) => (
+        {datasets.map((dataset) => (
           <Bar
             key={dataset.label}
             dataKey={dataset.label}

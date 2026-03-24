@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,10 +10,9 @@ import {
   type ColumnDef,
   type SortingState,
   type VisibilityState,
-  type ColumnFiltersState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUpDown, Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
 import {
   Table,
   TableBody,

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import { Agent } from '../types/agent';
 import { toast } from 'sonner';
 import { agentStore } from '../stores/agent-store';
@@ -23,12 +24,12 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(() => agentStore.getSelectedAgent());
 
   // Initial async load from server
-  useEffect(() => {
+  useMountEffect(() => {
     agentStore.refresh().then(() => {
       setAgents(agentStore.getAgents());
       setSelectedAgent(agentStore.getSelectedAgent());
     });
-  }, []);
+  });
 
   const refreshAgents = useCallback(() => {
     agentStore.refresh().then(() => {
