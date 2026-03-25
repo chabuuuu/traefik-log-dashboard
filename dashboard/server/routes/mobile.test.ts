@@ -2,16 +2,22 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { requireMobileApiKey } from './mobile';
 
-function createMockRequest(headers: Record<string, string | undefined>): Request {
+function createMockRequest(
+  headers: Record<string, string | undefined>,
+  method: string = 'GET',
+): Request {
   return {
+    method,
     header: (name: string) => headers[name.toLowerCase()],
   } as unknown as Request;
 }
 
 function createMockResponse(): Response & { statusCode: number; body: unknown } {
+  const headers: Record<string, string> = {};
   const res = {
     statusCode: 0,
     body: null as unknown,
+    headers,
     status(code: number) {
       res.statusCode = code;
       return res;
@@ -20,7 +26,11 @@ function createMockResponse(): Response & { statusCode: number; body: unknown } 
       res.body = data;
       return res;
     },
-    setHeader() {
+    setHeader(name: string, value: string) {
+      headers[name.toLowerCase()] = value;
+      return res;
+    },
+    end() {
       return res;
     },
   };
@@ -110,5 +120,22 @@ describe('requireMobileApiKey', () => {
     requireMobileApiKey(req, res as unknown as Response, next);
 
     expect(next).toHaveBeenCalled();
+  });
+
+  it('responds 204 with CORS headers for OPTIONS preflight', () => {
+    delete process.env.MOBILE_API_KEY;
+    const req = createMockRequest({}, 'OPTIONS');
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    requireMobileApiKey(req, res as unknown as Response, next);
+
+    expect(res.statusCode).toBe(204);
+    expect((res as unknown as { headers: Record<string, string> }).headers['access-control-allow-origin']).toBe('*');
+    expect((res as unknown as { headers: Record<string, string> }).headers['access-control-allow-methods']).toBe('GET,POST,OPTIONS');
+    expect((res as unknown as { headers: Record<string, string> }).headers['access-control-allow-headers']).toBe(
+      'Content-Type, X-API-Key, Authorization, X-Agent-Id',
+    );
+    expect(next).not.toHaveBeenCalled();
   });
 });

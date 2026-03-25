@@ -16,6 +16,22 @@ const router = Router();
 // --- Auth middleware ---
 
 export function requireMobileApiKey(req: Request, res: Response, next: NextFunction): void {
+  // Mobile app uses browser-style `fetch()` to a user-provided absolute URL.
+  // Those requests commonly trigger CORS preflight `OPTIONS`, so we must
+  // respond with CORS headers even before validating the API key.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, X-API-Key, Authorization, X-Agent-Id',
+  );
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req.method?.toUpperCase() === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   const configuredKey = process.env.MOBILE_API_KEY;
   if (!configuredKey) {
     res.status(503).json({
