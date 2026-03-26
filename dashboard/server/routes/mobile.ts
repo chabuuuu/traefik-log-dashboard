@@ -10,6 +10,7 @@ import {
 } from '../alerts/repository';
 import { runtimeConfig } from '../config';
 import { getAgentIDFromRequest, normalizeProxyTarget } from './proxy';
+import { resolveLocationsBatch, normalizeIPAddress } from './location';
 
 const router = Router();
 
@@ -229,6 +230,76 @@ function resolveProxyAgent(req: ProxyRequest, res: Response, next: NextFunction)
 
   next();
 }
+
+// Mobile Geo aggregation endpoint
+router.get('/agents/:id/geo', async (req, res) => {
+  try {
+    const agentId = String(req.params.id);
+    const agent = getAgentById(agentId);
+    if (!agent) {
+      res.status(404).json({ error: 'Agent not found', message: `Agent ${agentId} does not exist` });
+      return;
+    }
+    const target = normalizeProxyTarget(agent.configured_url || agent.url);
+    const token = agent.token || '';
+
+    const logRes = await fetch(`${target}/api/logs/access?lines=1000`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!logRes.ok) {
+      res.status(logRes.status).json({ error: 'Failed to fetch logs', message: `HTTP ${logRes.status}` });
+      return;
+    }
+
+    const logsData = (await logRes.json()) as { logs: any[] };
+    const logs = logsData.logs || [];
+
+    const ipsToLookup: string[] = [];
+    for (const log of logs) {
+      const rawIp = log.ClientHost || log.ClientAddr || '';
+      if (rawIp) ipsToLookup.push(rawIp);
+    }
+
+    const locations = await resolveLocationsBatch(ipsToLookup);
+    const locationMap = new Map(locations.map(loc => [loc.ipAddress, loc]));
+
+    const countryMap = new Map<string, number>();
+    for (const log of logs) {
+      const rawIp = log.ClientHost || log.ClientAddr || '';
+      const normalizedIP = normalizeIPAddress(rawIp);
+      
+      let country = 'Unknown';
+      if (normalizedIP) {
+        const loc = locationMap.get(normalizedIP);
+        country = loc?.country || 'Unknown';
+        if (country === 'Private') country = 'Unknown';
+      }
+      
+      countryMap.set(country, (countryMap.get(country) || 0) + 1);
+    }
+
+    const total = logs.length || 1;
+    const stats = [...countryMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([country, count]) => ({
+        country,
+        count,
+        percentage: Math.round((count / total) * 1000) / 10,
+      }));
+
+    res.json({
+      stats,
+      hasGeoData: stats.some((s) => s.country !== 'Unknown'),
+      resolverStatus: 'Processed by Dashboard API',
+      cacheStats: { size: locations.length, maxEntries: 10000 },
+    });
+  } catch (err) {
+    console.error('[mobile] Error aggregating geo data:', err);
+    res.status(500).json({ error: 'Internal error', message: 'Failed to aggregate geo data' });
+  }
+});
 
 // Proxy /api/mobile/logs/* -> agent /api/logs/*
 // Proxy /api/mobile/system/* -> agent /api/system/*

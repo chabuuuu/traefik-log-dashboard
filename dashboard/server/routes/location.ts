@@ -605,23 +605,10 @@ router.get('/status', (_req: Request, res: Response) => {
   });
 });
 
-router.post('/lookup', async (req: Request, res: Response) => {
-  const body = (req.body || {}) as LocationLookupRequestBody;
-  if (!Array.isArray(body.ips)) {
-    res.status(400).json({ error: 'Invalid request body: "ips" must be an array of IP strings' });
-    return;
-  }
-
-  if (body.ips.length > locationLookupConfig.maxIpsPerRequest) {
-    res.status(400).json({
-      error: `Too many IPs: maximum is ${locationLookupConfig.maxIpsPerRequest} per request`,
-    });
-    return;
-  }
-
+export async function resolveLocationsBatch(ips: string[]): Promise<GeoLocationLookup[]> {
   const uniqueIPs = new Set<string>();
   const normalizedIPs: string[] = [];
-  for (const value of body.ips) {
+  for (const value of ips) {
     if (!isNonEmptyString(value)) {
       continue;
     }
@@ -636,8 +623,7 @@ router.post('/lookup', async (req: Request, res: Response) => {
   }
 
   if (normalizedIPs.length === 0) {
-    res.json({ locations: [], count: 0 });
-    return;
+    return [];
   }
 
   const now = Date.now();
@@ -664,6 +650,25 @@ router.post('/lookup', async (req: Request, res: Response) => {
       return resolved;
     },
   );
+
+  return locations;
+}
+
+router.post('/lookup', async (req: Request, res: Response) => {
+  const body = (req.body || {}) as LocationLookupRequestBody;
+  if (!Array.isArray(body.ips)) {
+    res.status(400).json({ error: 'Invalid request body: "ips" must be an array of IP strings' });
+    return;
+  }
+
+  if (body.ips.length > locationLookupConfig.maxIpsPerRequest) {
+    res.status(400).json({
+      error: `Too many IPs: maximum is ${locationLookupConfig.maxIpsPerRequest} per request`,
+    });
+    return;
+  }
+
+  const locations = await resolveLocationsBatch(body.ips);
 
   res.json({
     locations,
