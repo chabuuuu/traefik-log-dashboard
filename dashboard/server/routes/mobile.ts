@@ -280,6 +280,34 @@ router.get('/agents/:id/geo', async (req, res) => {
       countryMap.set(country, (countryMap.get(country) || 0) + 1);
     }
 
+    // Aggregate by IP with full location data
+    const ipAggMap = new Map<string, { ip: string; country: string; city?: string; latitude?: number; longitude?: number; count: number }>();
+    for (const log of logs) {
+      const rawIp = log.ClientHost || log.ClientAddr || '';
+      const normalizedIP = normalizeIPAddress(rawIp);
+      if (!normalizedIP) continue;
+      const loc = locationMap.get(normalizedIP);
+      const country = (loc?.country && loc.country !== 'Private') ? loc.country : 'Unknown';
+      const existing = ipAggMap.get(normalizedIP);
+      if (existing) {
+        existing.count++;
+      } else {
+        ipAggMap.set(normalizedIP, {
+          ip: normalizedIP,
+          country,
+          city: loc?.city,
+          latitude: loc?.latitude,
+          longitude: loc?.longitude,
+          count: 1,
+        });
+      }
+    }
+
+    const ipLocations = [...ipAggMap.values()]
+      .filter((l) => l.country !== 'Unknown')
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 50);
+
     const total = logs.length || 1;
     const stats = [...countryMap.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -291,6 +319,7 @@ router.get('/agents/:id/geo', async (req, res) => {
 
     res.json({
       stats,
+      locations: ipLocations,
       hasGeoData: stats.some((s) => s.country !== 'Unknown'),
       resolverStatus: 'Processed by Dashboard API',
       cacheStats: { size: locations.length, maxEntries: 10000 },
