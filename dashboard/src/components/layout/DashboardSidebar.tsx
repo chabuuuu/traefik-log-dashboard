@@ -134,7 +134,7 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border py-1 px-2">
+      <SidebarHeader className="h-14 shrink-0 border-b border-sidebar-border px-2 flex items-center">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
@@ -197,7 +197,7 @@ export function DashboardSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
-        <div className="flex items-center justify-center gap-3 py-2">
+        <div className="flex items-center justify-center gap-3 py-2 group-data-[collapsible=icon]:hidden">
           {socialItems.map((item) => {
             const isDisabled = item.isComingSoon || !item.href;
             const tooltipLabel = isDisabled
