@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -132,7 +133,21 @@ func (h *Handler) HandleStreamAccessLogs(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	ctx := r.Context()
+	requestedPos := utils.GetQueryParamInt64(r, "position", -2)
 	startPos := h.state.GetFilePosition(h.config.AccessPath)
+	switch {
+	case requestedPos == -1:
+		if fileInfo, err := os.Stat(h.config.AccessPath); err == nil && !fileInfo.IsDir() {
+			startPos = fileInfo.Size()
+		} else {
+			startPos = 0
+		}
+	case requestedPos >= 0:
+		startPos = requestedPos
+	}
+	if startPos < 0 {
+		startPos = 0
+	}
 	currentPos := startPos
 
 	flushInterval := time.Duration(h.config.StreamFlushIntervalMS) * time.Millisecond
@@ -182,18 +197,20 @@ func (h *Handler) HandleStreamAccessLogs(w http.ResponseWriter, r *http.Request)
 				if jsonErr != nil {
 					continue
 				}
-				entry := "data: " + string(jsonBytes) + "\n"
+				entry := "event: log\n" + "data: " + string(jsonBytes) + "\n\n"
 				if bytesUsed+len(entry)+1 > maxBytes {
 					logger.Log.Printf("stream batch truncated at %d bytes", bytesUsed)
 					break
 				}
 				builder.WriteString(entry)
-				builder.WriteString("\n")
-				bytesUsed += len(entry) + 1
+				bytesUsed += len(entry)
 			}
 
 			if builder.Len() > 0 {
 				if _, err := w.Write([]byte(builder.String())); err != nil {
+					return
+				}
+				if _, err := w.Write([]byte(fmt.Sprintf("event: cursor\ndata: {\"position\":%d}\n\n", nextPos))); err != nil {
 					return
 				}
 				flusher.Flush()

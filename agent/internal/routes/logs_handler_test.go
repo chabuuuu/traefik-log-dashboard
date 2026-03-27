@@ -47,6 +47,12 @@ func TestHandleStreamAccessLogs(t *testing.T) {
 
 	body := rr.Body.String()
 	// SSE data lines should contain JSON objects with structured fields
+	if !strings.Contains(body, "event: log") {
+		t.Fatalf("expected stream to emit typed log events, got: %s", body)
+	}
+	if !strings.Contains(body, "event: cursor") {
+		t.Fatalf("expected stream to emit cursor checkpoints, got: %s", body)
+	}
 	if !strings.Contains(body, `"ClientHost"`) {
 		t.Fatalf("expected stream to contain structured JSON with ClientHost, got: %s", body)
 	}

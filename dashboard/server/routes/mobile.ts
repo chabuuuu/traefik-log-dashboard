@@ -75,7 +75,7 @@ router.use(requireMobileApiKey);
 
 function serializeAgentForMobile(row: DBAgent) {
   const { token, ...rest } = serializeAgent(row);
-  return rest;
+  return token ? rest : rest;
 }
 
 // --- Dashboard-local endpoints ---
@@ -203,6 +203,17 @@ type ProxyRequest = Request & {
   proxyAgent?: ProxyAgentContext;
 };
 
+interface CachedGeoResponse {
+  stats: Array<{ country: string; count: number; percentage: number }>;
+  locations: Array<{ ip: string; country: string; city?: string; latitude?: number; longitude?: number; count: number }>;
+  hasGeoData: boolean;
+  resolverStatus: string;
+  cacheStats: { size: number; maxEntries: number };
+}
+
+const MOBILE_GEO_CACHE_TTL_MS = 20_000;
+const mobileGeoCache = new Map<string, { expiresAt: number; value: CachedGeoResponse }>();
+
 function resolveProxyAgent(req: ProxyRequest, res: Response, next: NextFunction): void {
   const agentID = getAgentIDFromRequest(req);
   if (!agentID) {
@@ -235,6 +246,13 @@ function resolveProxyAgent(req: ProxyRequest, res: Response, next: NextFunction)
 router.get('/agents/:id/geo', async (req, res) => {
   try {
     const agentId = String(req.params.id);
+    const now = Date.now();
+    const cached = mobileGeoCache.get(agentId);
+    if (cached && cached.expiresAt > now) {
+      res.json(cached.value);
+      return;
+    }
+
     const agent = getAgentById(agentId);
     if (!agent) {
       res.status(404).json({ error: 'Agent not found', message: `Agent ${agentId} does not exist` });
@@ -253,12 +271,15 @@ router.get('/agents/:id/geo', async (req, res) => {
       return;
     }
 
-    const logsData = (await logRes.json()) as { logs: any[] };
+    const logsData = (await logRes.json()) as { logs: Array<Record<string, unknown>> };
     const logs = logsData.logs || [];
 
     const ipsToLookup: string[] = [];
     for (const log of logs) {
-      const rawIp = log.ClientHost || log.ClientAddr || '';
+      const rawIp =
+        (typeof log.ClientHost === 'string' && log.ClientHost) ||
+        (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
+        '';
       if (rawIp) ipsToLookup.push(rawIp);
     }
 
@@ -267,7 +288,10 @@ router.get('/agents/:id/geo', async (req, res) => {
 
     const countryMap = new Map<string, number>();
     for (const log of logs) {
-      const rawIp = log.ClientHost || log.ClientAddr || '';
+      const rawIp =
+        (typeof log.ClientHost === 'string' && log.ClientHost) ||
+        (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
+        '';
       const normalizedIP = normalizeIPAddress(rawIp);
       
       let country = 'Unknown';
@@ -283,7 +307,10 @@ router.get('/agents/:id/geo', async (req, res) => {
     // Aggregate by IP with full location data
     const ipAggMap = new Map<string, { ip: string; country: string; city?: string; latitude?: number; longitude?: number; count: number }>();
     for (const log of logs) {
-      const rawIp = log.ClientHost || log.ClientAddr || '';
+      const rawIp =
+        (typeof log.ClientHost === 'string' && log.ClientHost) ||
+        (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
+        '';
       const normalizedIP = normalizeIPAddress(rawIp);
       if (!normalizedIP) continue;
       const loc = locationMap.get(normalizedIP);
@@ -317,13 +344,19 @@ router.get('/agents/:id/geo', async (req, res) => {
         percentage: Math.round((count / total) * 1000) / 10,
       }));
 
-    res.json({
+    const payload: CachedGeoResponse = {
       stats,
       locations: ipLocations,
       hasGeoData: stats.some((s) => s.country !== 'Unknown'),
       resolverStatus: 'Processed by Dashboard API',
       cacheStats: { size: locations.length, maxEntries: 10000 },
+    };
+
+    mobileGeoCache.set(agentId, {
+      expiresAt: now + MOBILE_GEO_CACHE_TTL_MS,
+      value: payload,
     });
+    res.json(payload);
   } catch (err) {
     console.error('[mobile] Error aggregating geo data:', err);
     res.status(500).json({ error: 'Internal error', message: 'Failed to aggregate geo data' });
