@@ -24,6 +24,11 @@ import {
   SidebarFooter,
   SidebarRail,
 } from '@/components/ui/ui-sidebar';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useConfig } from '@/utils/contexts/ConfigContext';
 
 function DiscordIcon(props: SVGProps<SVGSVGElement>) {
@@ -37,7 +42,7 @@ function DiscordIcon(props: SVGProps<SVGSVGElement>) {
 function PlayStoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M3 2.75v18.5a.75.75 0 0 0 1.14.64l8.95-5.33L3 2.75zm10.32 12.37l2.48-1.48l2.44 1.45a.75.75 0 0 0 .77 0l1.86-1.1a.75.75 0 0 0 0-1.3l-1.86-1.1a.75.75 0 0 0-.77 0l-2.44 1.45l-2.48-1.48l-1.78 1.06a.75.75 0 0 0 0 1.3l1.78 1.06zM3 2.75l10.32 6.13l2.48-1.48L4.14 2.11A.75.75 0 0 0 3 2.75zm10.32 18.37L3 21.25a.75.75 0 0 0 1.14.64L15.8 16.6l-2.48-1.48z" />
+      <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-1.38l2.5 1.449a1 1 0 0 1 0 1.448l-2.5 1.449-2.533-2.533 2.533-2.534zM5.864 3.458L16.8 9.791l-2.302 2.302-8.635-8.635z" />
     </svg>
   );
 }
@@ -45,7 +50,7 @@ function PlayStoreIcon(props: SVGProps<SVGSVGElement>) {
 function AppStoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M16.58 4.08a.75.75 0 0 1 1.03.27l1.03 1.78a.75.75 0 1 1-1.3.75l-1.03-1.78a.75.75 0 0 1 .27-1.02zm-6.2.24a.75.75 0 0 1 1.02.28l5.95 10.3a.75.75 0 0 1-1.3.75L10.1 5.35a.75.75 0 0 1 .28-1.03zM4.22 18.5a.75.75 0 0 1 .75-.75h14.06a.75.75 0 1 1 0 1.5H4.97a.75.75 0 0 1-.75-.75zm7.46-5.72L8.17 18.9a.75.75 0 1 1-1.3-.75l3.51-6.12a.75.75 0 0 1 1.3.75zm-2.93-5.02a.75.75 0 0 1 1.3.75l-1.47 2.57a.75.75 0 1 1-1.3-.75l1.47-2.57z" />
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
     </svg>
   );
 }
@@ -192,49 +197,41 @@ export function DashboardSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center justify-center gap-1 px-2 py-1">
-              {socialItems.map((item) => {
-                const isDisabled = item.isComingSoon || !item.href;
-                const tooltipLabel = isDisabled ? `${item.label} (Coming soon)` : item.label;
+        <div className="flex items-center justify-center gap-3 py-2">
+          {socialItems.map((item) => {
+            const isDisabled = item.isComingSoon || !item.href;
+            const tooltipLabel = isDisabled
+              ? `${item.label} (Coming soon)`
+              : item.label;
 
-                if (!isDisabled && item.href) {
-                  return (
-                    <SidebarMenuButton
-                      key={item.label}
-                      asChild
-                      size="sm"
-                      className="size-8 justify-center p-0"
-                      tooltip={{ children: tooltipLabel, hidden: false }}
+            return (
+              <Tooltip key={item.label}>
+                <TooltipTrigger asChild>
+                  {!isDisabled && item.href ? (
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={item.label}
+                      className="inline-flex items-center justify-center rounded-md p-1.5 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     >
-                      <a
-                        href={item.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={item.label}
-                      >
-                        <item.icon className="size-4" />
-                      </a>
-                    </SidebarMenuButton>
-                  );
-                }
-
-                return (
-                  <SidebarMenuButton
-                    key={item.label}
-                    size="sm"
-                    disabled
-                    className="size-8 cursor-not-allowed justify-center p-0 opacity-50"
-                    aria-label={`${item.label} coming soon`}
-                    tooltip={{ children: tooltipLabel, hidden: false }}
-                  >
-                    <item.icon className="size-4" />
-                  </SidebarMenuButton>
-                );
-              })}
-            </div>
-          </SidebarMenuItem>
+                      <item.icon className="size-4" />
+                    </a>
+                  ) : (
+                    <span
+                      aria-label={`${item.label} coming soon`}
+                      className="inline-flex cursor-not-allowed items-center justify-center rounded-md p-1.5 text-sidebar-foreground/30"
+                    >
+                      <item.icon className="size-4" />
+                    </span>
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="top">{tooltipLabel}</TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+        <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="sm">
               <a
