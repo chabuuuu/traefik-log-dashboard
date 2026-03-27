@@ -3,6 +3,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = require("../db");
 const router = (0, express_1.Router)();
+function rejectWhenEnvOnly(res) {
+    if (!(0, db_1.isEnvOnlyAgentsMode)()) {
+        return false;
+    }
+    res.status(403).json({
+        error: 'Agent mutations are disabled in env-only mode',
+        hint: 'Set DASHBOARD_AGENTS_ENV_ONLY=false to manage agents via UI/API',
+    });
+    return true;
+}
 // GET /api/dashboard/agents — list all agents
 router.get('/', (_req, res) => {
     const agents = (0, db_1.getAllAgents)().map(db_1.serializeAgent);
@@ -10,6 +20,9 @@ router.get('/', (_req, res) => {
 });
 // POST /api/dashboard/agents — add agent
 router.post('/', (req, res) => {
+    if (rejectWhenEnvOnly(res)) {
+        return;
+    }
     const { name, url, configuredUrl, token, location, description, tags } = req.body;
     if (!name || !url) {
         res.status(400).json({ error: 'name and url are required' });
@@ -28,6 +41,9 @@ router.post('/', (req, res) => {
 });
 // PATCH /api/dashboard/agents — update agent
 router.patch('/', (req, res) => {
+    if (rejectWhenEnvOnly(res)) {
+        return;
+    }
     const { id, ...updates } = req.body;
     if (!id) {
         res.status(400).json({ error: 'id is required' });
@@ -42,6 +58,9 @@ router.patch('/', (req, res) => {
 });
 // DELETE /api/dashboard/agents?id=xxx — delete agent
 router.delete('/', (req, res) => {
+    if (rejectWhenEnvOnly(res)) {
+        return;
+    }
     const id = req.query.id;
     if (!id) {
         res.status(400).json({ error: 'id query param is required' });
@@ -103,7 +122,15 @@ router.post('/check-status', async (req, res) => {
             signal: controller.signal,
         });
         clearTimeout(timeoutId);
-        const isOnline = response.ok;
+        let isOnline = response.ok;
+        if (!isOnline && response.status === 404) {
+            // Compatibility fallback for agents that don't expose /api/logs/status.
+            const resourcesResponse = await fetch(`${agentUrl}/api/system/resources`, {
+                headers,
+                signal: controller.signal,
+            });
+            isOnline = resourcesResponse.ok;
+        }
         (0, db_1.updateAgent)(id, {
             status: isOnline ? 'online' : 'offline',
             last_seen: isOnline ? new Date().toISOString() : undefined,
@@ -117,6 +144,9 @@ router.post('/check-status', async (req, res) => {
 });
 // POST /api/dashboard/agents/import — bulk import from localStorage migration
 router.post('/import', (req, res) => {
+    if (rejectWhenEnvOnly(res)) {
+        return;
+    }
     const { agents } = req.body;
     if (!Array.isArray(agents)) {
         res.status(400).json({ error: 'agents array is required' });

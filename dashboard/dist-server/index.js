@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -7,8 +40,14 @@ const express_1 = __importDefault(require("express"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const db_1 = require("./db");
+const config_1 = require("./config");
 const agents_1 = __importDefault(require("./routes/agents"));
+const alerts_1 = __importDefault(require("./routes/alerts"));
+const location_1 = __importDefault(require("./routes/location"));
 const proxy_1 = __importDefault(require("./routes/proxy"));
+const mobile_1 = __importStar(require("./routes/mobile"));
+const repository_1 = require("./alerts/repository");
+const scheduler_1 = require("./alerts/scheduler");
 const app = (0, express_1.default)();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DIST_DIR = path_1.default.resolve(__dirname, '../dist');
@@ -20,72 +59,30 @@ if (!fs_1.default.existsSync(DATA_DIR)) {
 // Initialize DB and sync env agents
 (0, db_1.getDB)();
 (0, db_1.syncEnvAgents)();
+(0, repository_1.initAlertingSchema)();
 console.log('[server] Database initialized, env agents synced');
-// --- Runtime config ---
-function buildRuntimeConfig() {
-    const pick = (...keys) => {
-        for (const k of keys) {
-            const v = process.env[k];
-            if (v)
-                return v;
-        }
-        return '';
-    };
-    const toBool = (val, fallback) => {
-        const v = val.toLowerCase();
-        if (['1', 'true', 'yes', 'on'].includes(v))
-            return true;
-        if (['0', 'false', 'no', 'off'].includes(v))
-            return false;
-        return fallback;
-    };
-    const toInt = (val, fallback) => {
-        const n = parseInt(val, 10);
-        return isNaN(n) ? fallback : n;
-    };
-    const basePath = pick('BASE_PATH', 'VITE_BASE_PATH');
-    const baseDomain = pick('BASE_DOMAIN', 'VITE_BASE_DOMAIN');
-    const showDemoRaw = pick('SHOW_DEMO_PAGE', 'DASHBOARD_SHOW_DEMO_PAGE');
-    const refreshRaw = pick('DASHBOARD_REFRESH_INTERVAL_MS', 'REFRESH_INTERVAL_MS');
-    const maxLogsRaw = pick('DASHBOARD_MAX_LOGS_DISPLAY', 'MAX_LOGS_DISPLAY');
-    const density = pick('DASHBOARD_DENSITY', 'UI_DENSITY') || 'comfortable';
-    const agentUrl = pick('AGENT_URL', 'AGENT_API_URL', 'VITE_AGENT_API_URL');
-    const agentToken = pick('AGENT_API_TOKEN', 'AGENT_TOKEN', 'VITE_AGENT_API_TOKEN');
-    const frontendAgentUrl = pick('DASHBOARD_DEFAULT_AGENT_URL', 'DEFAULT_AGENT_URL');
-    return {
-        basePath,
-        baseDomain,
-        showDemoPage: toBool(showDemoRaw, true),
-        refreshIntervalMs: toInt(refreshRaw, 5000),
-        maxLogsDisplay: toInt(maxLogsRaw, 1000),
-        chartPalette: [
-            'var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)',
-            'var(--chart-4)', 'var(--chart-5)',
-        ],
-        density,
-        themeTokens: {},
-        defaultAgentUrl: frontendAgentUrl,
-        defaultAgentToken: agentToken,
-        configuredAgentUrl: agentUrl,
-    };
-}
-const runtimeConfig = buildRuntimeConfig();
-const runtimeConfigJSON = JSON.stringify(runtimeConfig);
+const runtimeConfigJSON = JSON.stringify(config_1.runtimeConfig);
 // --- Middleware ---
 app.use(express_1.default.json());
 // --- API Routes (before static files) ---
 // Dashboard agent management API
 app.use('/api/dashboard/agents', agents_1.default);
+app.use('/api/dashboard/alerts', alerts_1.default);
 // Runtime config endpoint
 app.get('/api/dashboard-config', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.json(runtimeConfig);
+    res.json(config_1.runtimeConfig);
 });
 app.get('/api/dashboard-config.json', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.json(runtimeConfig);
+    res.json(config_1.runtimeConfig);
 });
-// Agent API proxy (logs, system, location)
+// Local GeoIP lookup endpoints
+app.use('/api/location', location_1.default);
+// Mobile API (read-only, API key auth)
+app.use('/api/mobile', mobile_1.default);
+app.use('/api/mobile/location', mobile_1.requireMobileApiKey, location_1.default);
+// Agent API proxy (logs and system)
 app.use(proxy_1.default);
 // --- Static files ---
 // Generate runtime-config.js for the SPA
@@ -115,6 +112,7 @@ app.get('*', (_req, res) => {
 });
 // --- Start ---
 app.listen(PORT, '0.0.0.0', () => {
+    (0, scheduler_1.startAlertScheduler)();
     console.log(`[server] Dashboard server running on port ${PORT}`);
     console.log(`[server] Serving static files from ${DIST_DIR}`);
     console.log(`[server] Data directory: ${DATA_DIR}`);
