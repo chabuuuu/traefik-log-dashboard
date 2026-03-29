@@ -57,8 +57,13 @@ export function requireMobileApiKey(req: Request, res: Response, next: NextFunct
 
   const keyBuffer = Buffer.from(headerKey);
   const configuredBuffer = Buffer.from(configuredKey);
+  const maxLen = Math.max(keyBuffer.length, configuredBuffer.length, 1);
+  const paddedKey = Buffer.alloc(maxLen);
+  const paddedConfigured = Buffer.alloc(maxLen);
+  keyBuffer.copy(paddedKey);
+  configuredBuffer.copy(paddedConfigured);
 
-  if (keyBuffer.length !== configuredBuffer.length || !crypto.timingSafeEqual(keyBuffer, configuredBuffer)) {
+  if (!crypto.timingSafeEqual(paddedKey, paddedConfigured) || keyBuffer.length !== configuredBuffer.length) {
     res.status(401).json({
       error: 'Unauthorized',
       message: 'Invalid API key',
@@ -72,6 +77,12 @@ export function requireMobileApiKey(req: Request, res: Response, next: NextFunct
 router.use(requireMobileApiKey);
 
 // --- Helpers ---
+
+function extractClientIp(log: Record<string, unknown>): string {
+  return (typeof log.ClientHost === 'string' && log.ClientHost) ||
+    (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
+    '';
+}
 
 function serializeAgentForMobile(row: DBAgent) {
   const { token, ...rest } = serializeAgent(row);
@@ -212,6 +223,7 @@ interface CachedGeoResponse {
 }
 
 const MOBILE_GEO_CACHE_TTL_MS = 20_000;
+const MOBILE_GEO_CACHE_MAX_SIZE = 500;
 const mobileGeoCache = new Map<string, { expiresAt: number; value: CachedGeoResponse }>();
 
 function cleanupGeoCache(): void {
@@ -220,6 +232,18 @@ function cleanupGeoCache(): void {
     if (entry.expiresAt <= now) {
       mobileGeoCache.delete(key);
     }
+  }
+}
+
+function geoCacheSet(key: string, value: CachedGeoResponse): void {
+  // Refresh insertion order on update
+  mobileGeoCache.delete(key);
+  mobileGeoCache.set(key, { expiresAt: Date.now() + MOBILE_GEO_CACHE_TTL_MS, value });
+  // Evict oldest (first inserted) entries when over max size
+  while (mobileGeoCache.size > MOBILE_GEO_CACHE_MAX_SIZE) {
+    const oldest = mobileGeoCache.keys().next().value;
+    if (oldest !== undefined) mobileGeoCache.delete(oldest);
+    else break;
   }
 }
 
@@ -302,10 +326,7 @@ router.get('/agents/:id/geo', async (req, res) => {
 
     const ipsToLookup: string[] = [];
     for (const log of logs) {
-      const rawIp =
-        (typeof log.ClientHost === 'string' && log.ClientHost) ||
-        (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
-        '';
+      const rawIp = extractClientIp(log);
       if (rawIp) ipsToLookup.push(rawIp);
     }
 
@@ -316,10 +337,7 @@ router.get('/agents/:id/geo', async (req, res) => {
     const ipAggMap = new Map<string, { ip: string; country: string; city?: string; latitude?: number; longitude?: number; count: number }>();
 
     for (const log of logs) {
-      const rawIp =
-        (typeof log.ClientHost === 'string' && log.ClientHost) ||
-        (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
-        '';
+      const rawIp = extractClientIp(log);
       const normalizedIP = normalizeIPAddress(rawIp);
 
       let country = 'Unknown';
@@ -373,10 +391,7 @@ router.get('/agents/:id/geo', async (req, res) => {
       cacheStats: { size: locations.length, maxEntries: 10000 },
     };
 
-    mobileGeoCache.set(agentId, {
-      expiresAt: now + MOBILE_GEO_CACHE_TTL_MS,
-      value: payload,
-    });
+    geoCacheSet(agentId, payload);
     res.json(payload);
   } catch (err) {
     console.error('[mobile] Error aggregating geo data:', err);
@@ -412,13 +427,13 @@ for (const basePath of proxyPaths) {
         },
         error: (err, req, res) => {
           const agentID = (req as ProxyRequest).proxyAgent?.id || 'unknown';
+          const payload = { error: 'Agent unreachable', agentId: agentID, message: err.message };
           console.error(`[mobile] Proxy error: ${err.message}`);
-          if (res && 'writeHead' in res) {
-            (res as Response).status(502).json({
-              error: 'Agent unreachable',
-              agentId: agentID,
-              message: err.message,
-            });
+          if (res && typeof (res as any).json === 'function' && typeof (res as any).status === 'function') {
+            (res as Response).status(502).json(payload);
+          } else if (res && typeof (res as any).writeHead === 'function') {
+            (res as import('http').ServerResponse).writeHead(502, { 'Content-Type': 'application/json' });
+            (res as import('http').ServerResponse).end(JSON.stringify(payload));
           }
         },
       },
