@@ -287,46 +287,41 @@ router.get('/agents/:id/geo', async (req, res) => {
     const locationMap = new Map(locations.map(loc => [loc.ipAddress, loc]));
 
     const countryMap = new Map<string, number>();
-    for (const log of logs) {
-      const rawIp =
-        (typeof log.ClientHost === 'string' && log.ClientHost) ||
-        (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
-        '';
-      const normalizedIP = normalizeIPAddress(rawIp);
-      
-      let country = 'Unknown';
-      if (normalizedIP) {
-        const loc = locationMap.get(normalizedIP);
-        country = loc?.country || 'Unknown';
-        if (country === 'Private') country = 'Unknown';
-      }
-      
-      countryMap.set(country, (countryMap.get(country) || 0) + 1);
-    }
-
-    // Aggregate by IP with full location data
     const ipAggMap = new Map<string, { ip: string; country: string; city?: string; latitude?: number; longitude?: number; count: number }>();
+
     for (const log of logs) {
       const rawIp =
         (typeof log.ClientHost === 'string' && log.ClientHost) ||
         (typeof log.ClientAddr === 'string' && log.ClientAddr) ||
         '';
       const normalizedIP = normalizeIPAddress(rawIp);
-      if (!normalizedIP) continue;
-      const loc = locationMap.get(normalizedIP);
-      const country = (loc?.country && loc.country !== 'Private') ? loc.country : 'Unknown';
-      const existing = ipAggMap.get(normalizedIP);
-      if (existing) {
-        existing.count++;
-      } else {
-        ipAggMap.set(normalizedIP, {
-          ip: normalizedIP,
-          country,
-          city: loc?.city,
-          latitude: loc?.latitude,
-          longitude: loc?.longitude,
-          count: 1,
-        });
+
+      let country = 'Unknown';
+      let loc: ReturnType<typeof locationMap.get> | undefined;
+
+      if (normalizedIP) {
+        loc = locationMap.get(normalizedIP);
+        if (loc?.country && loc.country !== 'Private') {
+          country = loc.country;
+        }
+      }
+
+      countryMap.set(country, (countryMap.get(country) || 0) + 1);
+
+      if (normalizedIP) {
+        const existing = ipAggMap.get(normalizedIP);
+        if (existing) {
+          existing.count++;
+        } else {
+          ipAggMap.set(normalizedIP, {
+            ip: normalizedIP,
+            country,
+            city: loc?.city,
+            latitude: loc?.latitude,
+            longitude: loc?.longitude,
+            count: 1,
+          });
+        }
       }
     }
 
