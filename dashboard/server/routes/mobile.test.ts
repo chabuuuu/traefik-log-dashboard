@@ -38,7 +38,11 @@ function createMockResponse(): Response & { statusCode: number; body: unknown } 
 }
 
 describe('requireMobileApiKey', () => {
-  const originalEnv = process.env.MOBILE_API_KEY;
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.MOBILE_API_KEY;
+  });
 
   afterEach(() => {
     if (originalEnv !== undefined) {
@@ -124,6 +128,23 @@ describe('requireMobileApiKey', () => {
 
   it('responds 204 with CORS headers for OPTIONS preflight', () => {
     delete process.env.MOBILE_API_KEY;
+    const req = createMockRequest({}, 'OPTIONS');
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    requireMobileApiKey(req, res as unknown as Response, next);
+
+    expect(res.statusCode).toBe(204);
+    expect((res as unknown as { headers: Record<string, string> }).headers['access-control-allow-origin']).toBe('*');
+    expect((res as unknown as { headers: Record<string, string> }).headers['access-control-allow-methods']).toBe('GET,POST,OPTIONS');
+    expect((res as unknown as { headers: Record<string, string> }).headers['access-control-allow-headers']).toBe(
+      'Content-Type, X-API-Key, Authorization, X-Agent-Id',
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('responds 204 with CORS headers for OPTIONS preflight when API key is configured', () => {
+    process.env.MOBILE_API_KEY = 'test-api-key-123';
     const req = createMockRequest({}, 'OPTIONS');
     const res = createMockResponse();
     const next = vi.fn();

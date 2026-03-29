@@ -79,7 +79,7 @@ function buildRuntimeConfig(): Record<string, unknown> {
     density,
     themeTokens: {},
     defaultAgentUrl: frontendAgentUrl,
-    defaultAgentToken: agentToken,
+    defaultAgentConfigured: !!agentToken,
     configuredAgentUrl: agentUrl,
   };
 }

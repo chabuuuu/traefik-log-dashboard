@@ -97,9 +97,9 @@ export function useAgentHealth(options: HealthMonitorOptions = {}) {
     try {
       // MEMORY LEAK FIX: Add timeout to prevent hanging requests
       const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10 second timeout
-      
+
       try {
-        isOnline = await checkAgentStatus(agent.id);
+        isOnline = await checkAgentStatus(agent.id, abortController.signal);
       } finally {
         clearTimeout(timeoutId);
       }

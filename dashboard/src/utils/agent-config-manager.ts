@@ -46,7 +46,7 @@ export class AgentConfigManager {
       id: 'agent-001',
       name: 'Default Agent',
       url: runtime.defaultAgentUrl || sameOrigin,
-      token: runtime.defaultAgentToken || '',
+      token: '',
       location: 'on-site',
       number: 1,
       status: 'checking',

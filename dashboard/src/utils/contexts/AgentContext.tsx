@@ -14,7 +14,7 @@ interface AgentContextType {
   updateAgent: (id: string, updates: Partial<Agent>) => void;
   deleteAgent: (id: string) => void;
   refreshAgents: () => void;
-  checkAgentStatus: (id: string) => Promise<boolean>;
+  checkAgentStatus: (id: string, signal?: AbortSignal) => Promise<boolean>;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
@@ -28,6 +28,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     agentStore.refresh().then(() => {
       setAgents(agentStore.getAgents());
       setSelectedAgent(agentStore.getSelectedAgent());
+    }).catch((err) => {
+      console.error('[AgentContext] Failed to refresh agents:', err);
     });
   });
 
@@ -35,6 +37,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     agentStore.refresh().then(() => {
       setAgents(agentStore.getAgents());
       setSelectedAgent(agentStore.getSelectedAgent());
+    }).catch((err) => {
+      console.error('[AgentContext] Failed to refresh agents:', err);
     });
   }, []);
 
@@ -91,7 +95,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     toast.success('Agent deleted successfully');
   }, [selectedAgent]);
 
-  const checkAgentStatus = useCallback(async (id: string): Promise<boolean> => {
+  const checkAgentStatus = useCallback(async (id: string, signal?: AbortSignal): Promise<boolean> => {
     const agent = agentStore.getAgentById(id);
     if (!agent) {
       console.warn(`Agent ${id} not found for status check`);
@@ -108,6 +112,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
+        signal,
       });
 
       const result = await response.json();

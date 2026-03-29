@@ -96,7 +96,6 @@ export default function DashboardWithFilters({ logs, demoMode = false, agentId, 
         onShowInternalTraffic={() => updateSettings({ hideInternalTraffic: false })}
         demoMode={demoMode}
         agentId={agentId}
-        agentName={agentName}
       />
     </>
   );

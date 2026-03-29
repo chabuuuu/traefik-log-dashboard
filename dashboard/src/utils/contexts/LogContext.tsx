@@ -31,25 +31,7 @@ const LogContext = createContext<LogContextType | undefined>(undefined);
 export function LogProvider({ children }: { children: React.ReactNode }) {
   const logFetcherState = useLogFetcher();
 
-  const value = useMemo(
-    () => logFetcherState,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally uses individual fields for granular memoization
-    [
-      logFetcherState.logs,
-      logFetcherState.loading,
-      logFetcherState.error,
-      logFetcherState.connected,
-      logFetcherState.lastUpdate,
-      logFetcherState.isPaused,
-      logFetcherState.setIsPaused,
-      logFetcherState.agentId,
-      logFetcherState.agentName,
-      logFetcherState.dedupeDebug,
-      logFetcherState.isCatchingUp,
-      logFetcherState.isCached,
-      logFetcherState.resetAndLoadRecent,
-    ]
-  );
+  const value = useMemo(() => logFetcherState, [logFetcherState]);
 
   return <LogContext.Provider value={value}>{children}</LogContext.Provider>;
 }

@@ -75,7 +75,7 @@ router.use(requireMobileApiKey);
 
 function serializeAgentForMobile(row: DBAgent) {
   const { token, ...rest } = serializeAgent(row);
-  return token ? rest : rest;
+  return rest;
 }
 
 // --- Dashboard-local endpoints ---
@@ -214,6 +214,17 @@ interface CachedGeoResponse {
 const MOBILE_GEO_CACHE_TTL_MS = 20_000;
 const mobileGeoCache = new Map<string, { expiresAt: number; value: CachedGeoResponse }>();
 
+function cleanupGeoCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of mobileGeoCache) {
+    if (entry.expiresAt <= now) {
+      mobileGeoCache.delete(key);
+    }
+  }
+}
+
+setInterval(cleanupGeoCache, 60_000);
+
 function resolveProxyAgent(req: ProxyRequest, res: Response, next: NextFunction): void {
   const agentID = getAgentIDFromRequest(req);
   if (!agentID) {
@@ -245,6 +256,7 @@ function resolveProxyAgent(req: ProxyRequest, res: Response, next: NextFunction)
 // Mobile Geo aggregation endpoint
 router.get('/agents/:id/geo', async (req, res) => {
   try {
+    cleanupGeoCache();
     const agentId = String(req.params.id);
     const now = Date.now();
     const cached = mobileGeoCache.get(agentId);
@@ -261,10 +273,24 @@ router.get('/agents/:id/geo', async (req, res) => {
     const target = normalizeProxyTarget(agent.configured_url || agent.url);
     const token = agent.token || '';
 
-    const logRes = await fetch(`${target}/api/logs/access?lines=1000`, {
-      method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    let logRes: Response;
+    try {
+      logRes = await fetch(`${target}/api/logs/access?lines=1000`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === 'AbortError') {
+        res.status(504).json({ error: 'Agent timeout', message: 'Agent did not respond within 10 seconds' });
+        return;
+      }
+      throw err;
+    }
 
     if (!logRes.ok) {
       res.status(logRes.status).json({ error: 'Failed to fetch logs', message: `HTTP ${logRes.status}` });

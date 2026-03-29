@@ -47,7 +47,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
       });
     }
     setErrors([]);
-  }, [agent, isOpen]);
+  }, [agent?.id, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -14,7 +14,7 @@ export interface RuntimeConfig {
   chartPalette?: string[];
   themeTokens?: Record<string, string>;
   defaultAgentUrl?: string;
-  defaultAgentToken?: string;
+  defaultAgentConfigured?: boolean;
   configuredAgentUrl?: string;
 }
 
@@ -22,7 +22,6 @@ const buildTimeFallback: RuntimeConfig = {
   basePath: import.meta.env.VITE_BASE_PATH || '',
   baseDomain: import.meta.env.VITE_BASE_DOMAIN || '',
   defaultAgentUrl: import.meta.env.VITE_AGENT_API_URL || '',
-  defaultAgentToken: import.meta.env.VITE_AGENT_API_TOKEN || '',
 };
 
 export function getRuntimeConfig(): RuntimeConfig {

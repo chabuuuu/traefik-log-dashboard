@@ -226,7 +226,7 @@ export default function AlertRuleFormModal({
       setErrors({});
       setExpandedSection('basic');
     }
-  }, [isOpen, alert]);
+  }, [isOpen, alert?.id]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};

@@ -15,7 +15,7 @@ export interface DashboardConfig {
   internalNoisePathPrefixes: string[];
   internalNoiseServicePatterns: string[];
   defaultAgentUrl?: string;
-  defaultAgentToken?: string;
+  defaultAgentConfigured?: boolean;
   chartPalette: string[];
   density: 'compact' | 'comfortable';
   themeTokens?: Record<string, string>;

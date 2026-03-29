@@ -856,18 +856,20 @@ function MapDrawControl({
     const editControlRef = useRef<EditToolbar.Edit | null>(null)
     const deleteControlRef = useRef<EditToolbar.Delete | null>(null)
     const [activeMode, setActiveMode] = useState<MapDrawMode>(null)
+    const onLayersChangeRef = useRef(onLayersChange)
+    onLayersChangeRef.current = onLayersChange
 
     function handleDrawCreated(event: DrawEvents.Created) {
         if (!featureGroupRef.current) return
         const { layer } = event
         featureGroupRef.current.addLayer(layer)
-        onLayersChange?.(featureGroupRef.current)
+        onLayersChangeRef.current?.(featureGroupRef.current)
         setActiveMode(null)
     }
 
     function handleDrawEditedOrDeleted() {
         if (!featureGroupRef.current) return
-        onLayersChange?.(featureGroupRef.current)
+        onLayersChangeRef.current?.(featureGroupRef.current)
         setActiveMode(null)
     }
 
@@ -890,8 +892,8 @@ function MapDrawControl({
             map.off(L.Draw.Event.EDITED, handleDrawEditedOrDeleted)
             map.off(L.Draw.Event.DELETED, handleDrawEditedOrDeleted)
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Leaflet draw handlers intentionally recreated each render
-    }, [L, LeafletDraw, map, onLayersChange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onLayersChange accessed via ref, handlers stable within effect
+    }, [L, LeafletDraw, map])
 
     return (
         <MapDrawContext.Provider

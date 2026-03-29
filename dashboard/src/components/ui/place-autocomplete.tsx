@@ -169,9 +169,17 @@ function useDebounce<T>(value: T, delay: number = 300) {
 function usePlaceSearch({
     debounceMs,
     query,
-    ...props
+    lang,
+    limit,
+    bbox,
+    lat,
+    lon,
+    zoom,
+    locationBiasScale,
+    onResultsChange,
 }: {
     debounceMs: number
+    onResultsChange?: (results: PlaceFeature[]) => void
 } & PlaceSearchOptions) {
     const [results, setResults] = React.useState<PlaceFeature[]>([])
     const [isLoading, setIsLoading] = React.useState(false)
@@ -197,7 +205,7 @@ function usePlaceSearch({
             setHasSearched(true)
 
             try {
-                const url = buildSearchUrl({ query: debouncedQuery, ...props })
+                const url = buildSearchUrl({ query: debouncedQuery, lang, limit, bbox, lat, lon, zoom, locationBiasScale })
                 const response = await fetch(url, {
                     signal: abortController.signal,
                 })
@@ -217,6 +225,7 @@ function usePlaceSearch({
                     return true
                 })
                 setResults(dedupedFeatures)
+                onResultsChange?.(dedupedFeatures)
             } catch (err) {
                 if (err instanceof Error && err.name !== "AbortError") {
                     setError(err)
@@ -232,7 +241,14 @@ function usePlaceSearch({
         return () => abortController.abort()
     }, [
         debouncedQuery,
-        props,
+        lang,
+        limit,
+        bbox,
+        lat,
+        lon,
+        zoom,
+        locationBiasScale,
+        onResultsChange,
     ])
 
     return { results, isLoading, error, hasSearched }
@@ -271,12 +287,8 @@ function PlaceAutocomplete({
         lon,
         zoom,
         locationBiasScale,
+        onResultsChange,
     })
-
-    // eslint-disable-next-line no-restricted-syntax -- notify parent on results change
-    React.useEffect(() => {
-        onResultsChange?.(results)
-    }, [results, onResultsChange])
 
     const hasNoResults =
         hasSearched && !isLoading && !error && results.length === 0

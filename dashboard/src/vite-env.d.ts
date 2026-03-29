@@ -17,6 +17,6 @@ declare interface Window {
     chartPalette?: string[];
     themeTokens?: Record<string, string>;
     defaultAgentUrl?: string;
-    defaultAgentToken?: string;
+    defaultAgentConfigured?: boolean;
   };
 }

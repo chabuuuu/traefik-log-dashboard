@@ -8,7 +8,7 @@ import { getNextLogCursor } from '@/utils/utils/log-cursor';
 import { useConfig } from '@/utils/contexts/ConfigContext';
 import { useAgents } from '@/utils/contexts/AgentContext';
 import { logStore } from '@/utils/stores/log-store';
-import { saveLogsToIDB, loadLogsFromIDB } from '@/utils/stores/log-persistence';
+import { saveLogsToIDB, loadLogsFromIDB, clearLogsFromIDB } from '@/utils/stores/log-persistence';
 
 const STREAM_BATCH_SIZE = 250;
 const STREAM_FLUSH_INTERVAL = 350;
@@ -365,6 +365,9 @@ export function useLogFetcher() {
 
   const resetAndLoadRecent = () => {
     if (selectedAgent?.id) {
+      clearLogsFromIDB(selectedAgent.id).catch((err) => {
+        console.warn('[useLogFetcher] Failed to clear IndexedDB logs:', err);
+      });
       logStore.clearPosition(selectedAgent.id);
       logStore.clearLogs();
       logStore.requestReset();

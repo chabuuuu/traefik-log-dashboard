@@ -55,7 +55,6 @@ interface TabbedDashboardProps {
   onShowInternalTraffic?: () => void;
   demoMode?: boolean;
   agentId?: string;
-  agentName?: string;
 }
 
 export default function TabbedDashboard({
@@ -66,8 +65,6 @@ export default function TabbedDashboard({
   onShowInternalTraffic,
   demoMode = false,
   agentId,
-  // agentName is accepted as a prop but not currently used
-  agentName: _agentName, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: TabbedDashboardProps) {
   const { config } = useConfig();
   const { geoLocations, isLoadingGeo, diagnostic } = useGeoLocation(logs, {
