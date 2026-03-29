@@ -275,7 +275,7 @@ router.get('/agents/:id/geo', async (req, res) => {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
-    let logRes: Response;
+    let logRes: globalThis.Response;
     try {
       logRes = await fetch(`${target}/api/logs/access?lines=1000`, {
         method: 'GET',
