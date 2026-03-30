@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext } from 'react';
 import { TraefikLog } from '@/utils/types';
 import { useLogFetcher, DedupeDebugStats } from '@/hooks/useLogFetcher';
 
@@ -31,9 +31,7 @@ const LogContext = createContext<LogContextType | undefined>(undefined);
 export function LogProvider({ children }: { children: React.ReactNode }) {
   const logFetcherState = useLogFetcher();
 
-  const value = useMemo(() => logFetcherState, [logFetcherState]);
-
-  return <LogContext.Provider value={value}>{children}</LogContext.Provider>;
+  return <LogContext.Provider value={logFetcherState}>{children}</LogContext.Provider>;
 }
 
 export function useLogContext(): LogContextType {

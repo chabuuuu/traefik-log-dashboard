@@ -39,6 +39,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       setSelectedAgent(agentStore.getSelectedAgent());
     }).catch((err) => {
       console.error('[AgentContext] Failed to refresh agents:', err);
+      toast.error('Failed to refresh agents');
     });
   }, []);
 
@@ -124,6 +125,9 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
       return isOnline;
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return false;
+      }
       console.error(`Agent ${id} status check failed:`, error);
 
       agentStore.updateAgent(id, { status: 'offline' });

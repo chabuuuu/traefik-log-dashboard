@@ -31,7 +31,7 @@ export default function AgentFormModal({ isOpen, onClose, agent }: AgentFormModa
       setFormData({
         name: agent.name,
         url: agent.configuredUrl || agent.url,
-        token: agent.token,
+        token: agent.token ?? '',
         location: agent.location,
         description: agent.description || '',
         tags: agent.tags?.join(', ') || '',

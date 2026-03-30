@@ -46,7 +46,7 @@ export class AgentConfigManager {
       id: 'agent-001',
       name: 'Default Agent',
       url: runtime.defaultAgentUrl || sameOrigin,
-      token: '',
+      token: undefined,
       location: 'on-site',
       number: 1,
       status: 'checking',
@@ -197,10 +197,6 @@ export class AgentConfigManager {
           errors.push('Agent address is invalid. Use host:port, IP:port, or a full URL');
         }
       }
-    }
-
-    if (!agent.token?.trim()) {
-      errors.push('Authentication token is required');
     }
 
     if (!agent.location || !['on-site', 'off-site'].includes(agent.location)) {

@@ -15,7 +15,6 @@ export interface RuntimeConfig {
   themeTokens?: Record<string, string>;
   defaultAgentUrl?: string;
   defaultAgentConfigured?: boolean;
-  configuredAgentUrl?: string;
 }
 
 const buildTimeFallback: RuntimeConfig = {

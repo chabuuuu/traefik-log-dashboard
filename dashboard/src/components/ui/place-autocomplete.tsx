@@ -188,10 +188,15 @@ function usePlaceSearch({
 
     const debouncedQuery = useDebounce(query, debounceMs)
 
+    const onResultsChangeRef = React.useRef(onResultsChange)
+    // eslint-disable-next-line no-restricted-syntax -- keep ref current without re-triggering fetch effect
+    React.useEffect(() => { onResultsChangeRef.current = onResultsChange }, [onResultsChange])
+
     // eslint-disable-next-line no-restricted-syntax -- search on debounced query change
     React.useEffect(() => {
         if (!debouncedQuery.trim()) {
             setResults([])
+            onResultsChangeRef.current?.([])
             setIsLoading(false)
             setHasSearched(false)
             return
@@ -225,11 +230,12 @@ function usePlaceSearch({
                     return true
                 })
                 setResults(dedupedFeatures)
-                onResultsChange?.(dedupedFeatures)
+                onResultsChangeRef.current?.(dedupedFeatures)
             } catch (err) {
                 if (err instanceof Error && err.name !== "AbortError") {
                     setError(err)
                     setResults([])
+                    onResultsChangeRef.current?.([])
                 }
             } finally {
                 setIsLoading(false)
@@ -248,7 +254,6 @@ function usePlaceSearch({
         lon,
         zoom,
         locationBiasScale,
-        onResultsChange,
     ])
 
     return { results, isLoading, error, hasSearched }

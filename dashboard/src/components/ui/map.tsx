@@ -754,28 +754,37 @@ function MapLocateControl({
     const [isLocating, setIsLocating] = useDebounceLoadingState(200)
     const [position, setPosition] = useState<LatLngExpression | null>(null)
 
+    const onLocationFoundRef = useRef(onLocationFound)
+    onLocationFoundRef.current = onLocationFound
+    const onLocationErrorRef = useRef(onLocationError)
+    onLocationErrorRef.current = onLocationError
+
+    const onLocationFoundHandler = useCallback((location: LocationEvent) => {
+        setPosition(location.latlng)
+        setIsLocating(false)
+        onLocationFoundRef.current?.(location)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps -- reads from ref
+
+    const onLocationErrorHandler = useCallback((error: ErrorEvent) => {
+        setPosition(null)
+        setIsLocating(false)
+        onLocationErrorRef.current?.(error)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps -- reads from ref
+
     function startLocating() {
         setIsLocating(true)
         map.locate({ setView: true, maxZoom: map.getMaxZoom(), watch })
-        map.on("locationfound", (location: LocationEvent) => {
-            setPosition(location.latlng)
-            setIsLocating(false)
-            onLocationFound?.(location)
-        })
-        map.on("locationerror", (error: ErrorEvent) => {
-            setPosition(null)
-            setIsLocating(false)
-            onLocationError?.(error)
-        })
+        map.on("locationfound", onLocationFoundHandler)
+        map.on("locationerror", onLocationErrorHandler)
     }
 
     const stopLocating = useCallback(() => {
         map.stopLocate()
-        map.off("locationfound")
-        map.off("locationerror")
+        map.off("locationfound", onLocationFoundHandler)
+        map.off("locationerror", onLocationErrorHandler)
         setPosition(null)
         setIsLocating(false)
-    }, [map]) // eslint-disable-line react-hooks/exhaustive-deps -- setIsLocating is stable setState
+    }, [map, onLocationFoundHandler, onLocationErrorHandler])
 
     // eslint-disable-next-line no-restricted-syntax -- cleanup on unmount
     useEffect(() => () => stopLocating(), [stopLocating])

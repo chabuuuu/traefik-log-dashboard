@@ -39,7 +39,9 @@ function buildRuntimeConfig(): Record<string, unknown> {
   const trafficTopItemsRaw = pick('DASHBOARD_TRAFFIC_TOP_ITEMS_LIMIT');
   const parserTrendWindowRaw = pick('DASHBOARD_PARSER_TREND_WINDOW_MINUTES');
   const agentsEnvOnlyRaw = pick('DASHBOARD_AGENTS_ENV_ONLY');
-  const density = pick('DASHBOARD_DENSITY', 'UI_DENSITY') || 'comfortable';
+  const VALID_DENSITIES = new Set(['compact', 'comfortable']);
+  const rawDensity = pick('DASHBOARD_DENSITY', 'UI_DENSITY');
+  const density = VALID_DENSITIES.has(rawDensity) ? rawDensity : 'comfortable';
   const agentUrl = pick('AGENT_API_URL', 'AGENT_URL');
   const agentToken = pick('AGENT_API_TOKEN', 'AGENT_TOKEN');
   const frontendAgentUrl = pick('DASHBOARD_DEFAULT_AGENT_URL');
@@ -80,7 +82,6 @@ function buildRuntimeConfig(): Record<string, unknown> {
     themeTokens: {},
     defaultAgentUrl: frontendAgentUrl,
     defaultAgentConfigured: !!agentToken,
-    configuredAgentUrl: agentUrl,
   };
 }
 

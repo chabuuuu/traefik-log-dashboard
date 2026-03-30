@@ -195,12 +195,15 @@ export function DashboardSidebar() {
                       <item.icon className="size-4" />
                     </a>
                   ) : (
-                    <span
+                    <button
+                      type="button"
+                      aria-disabled="true"
                       aria-label={`${item.label} coming soon`}
                       className="inline-flex cursor-not-allowed items-center justify-center rounded-md p-1.5 text-sidebar-foreground/30"
+                      onClick={(e) => e.preventDefault()}
                     >
                       <item.icon className="size-4" />
-                    </span>
+                    </button>
                   )}
                 </TooltipTrigger>
                 <TooltipContent side="top">{tooltipLabel}</TooltipContent>

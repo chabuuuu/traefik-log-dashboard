@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useSyncExternalStore } from 'react'; // eslint-disable-line no-restricted-syntax
+import { useState, useEffect, useRef, useSyncExternalStore, useCallback, useMemo } from 'react'; // eslint-disable-line no-restricted-syntax
 import { TraefikLog } from '@/utils/types';
 import { enrichLogsWithGeoLocation } from '@/utils/location';
 import { apiClient } from '@/utils/api-client';
@@ -363,18 +363,17 @@ export function useLogFetcher() {
     logStore.trimLogs(maxLogsDisplay);
   }, [maxLogsDisplay]);
 
-  const resetAndLoadRecent = () => {
+  const resetAndLoadRecent = useCallback(() => {
     if (selectedAgent?.id) {
-      clearLogsFromIDB(selectedAgent.id).catch((err) => {
-        console.warn('[useLogFetcher] Failed to clear IndexedDB logs:', err);
-      });
+      // clearLogsFromIDB handles its own errors internally
+      clearLogsFromIDB(selectedAgent.id);
       logStore.clearPosition(selectedAgent.id);
       logStore.clearLogs();
       logStore.requestReset();
     }
-  };
+  }, [selectedAgent?.id]);
 
-  return {
+  return useMemo(() => ({
     logs: storeState.logs,
     loading: storeState.loading,
     error: storeState.error,
@@ -388,5 +387,5 @@ export function useLogFetcher() {
     isCatchingUp: storeState.isCatchingUp,
     isCached: storeState.isCached,
     resetAndLoadRecent,
-  };
+  }), [storeState.logs, storeState.loading, storeState.error, storeState.connected, storeState.lastUpdate, isPaused, setIsPaused, storeState.agentId, storeState.agentName, dedupeDebug, storeState.isCatchingUp, storeState.isCached, resetAndLoadRecent]);
 }
