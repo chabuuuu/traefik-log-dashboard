@@ -10,7 +10,7 @@ import {
 } from '../alerts/repository';
 import { runtimeConfig } from '../config';
 import { getAgentIDFromRequest, normalizeProxyTarget } from './proxy';
-import { resolveLocationsBatch, normalizeIPAddress } from './location';
+import { resolveLocationsBatch, normalizeIPAddress, GEOIP_CACHE_MAX_ENTRIES } from './location';
 
 const router = Router();
 
@@ -388,7 +388,7 @@ router.get('/agents/:id/geo', async (req, res) => {
       locations: ipLocations,
       hasGeoData: stats.some((s) => s.country !== 'Unknown'),
       resolverStatus: 'Processed by Dashboard API',
-      cacheStats: { size: locations.length, maxEntries: 10000 },
+      cacheStats: { size: locations.length, maxEntries: GEOIP_CACHE_MAX_ENTRIES },
     };
 
     geoCacheSet(agentId, payload);
@@ -408,7 +408,14 @@ for (const basePath of proxyPaths) {
     basePath,
     resolveProxyAgent,
     createProxyMiddleware({
-      router: (req) => (req as ProxyRequest).proxyAgent?.target || 'http://localhost:5000',
+      router: (req) => {
+        const target = (req as ProxyRequest).proxyAgent?.target;
+        if (!target) {
+          console.warn('[mobile] Proxy router: proxyAgent.target missing, using fallback. This should not happen if resolveProxyAgent runs first.');
+          return 'http://localhost:5000';
+        }
+        return target;
+      },
       changeOrigin: true,
       on: {
         proxyReq: (proxyReq, req) => {

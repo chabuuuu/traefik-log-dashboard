@@ -149,6 +149,9 @@ const locationLookupConfig = {
   maxCacheEntries: parseIntEnv({ name: 'GEOIP_LOOKUP_CACHE_MAX_ENTRIES', fallback: 10000, min: 100, max: 200000 }),
 } as const;
 
+/** Configured max GeoIP cache entries — re-exported for use by other routes (e.g. mobile). */
+export const GEOIP_CACHE_MAX_ENTRIES = locationLookupConfig.maxCacheEntries;
+
 const locationCache = new Map<string, GeoLocationCacheEntry>();
 export function createProviderState(baseUrl: string): GeoProviderState {
   return {

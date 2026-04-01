@@ -23,7 +23,7 @@ export class MultiAgentAPIClient {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Authorization': `Bearer ${this.agent.token}`,
+      ...(this.agent.token ? { 'Authorization': `Bearer ${this.agent.token}` } : {}),
       ...(options.headers as Record<string, string> || {}),
     };
 
