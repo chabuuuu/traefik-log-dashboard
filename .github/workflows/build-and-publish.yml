@@ -336,7 +336,7 @@ jobs:
               environment:
                 # Log Paths
                 - TRAEFIK_LOG_DASHBOARD_ACCESS_PATH=/logs/access.log
-                - TRAEFIK_LOG_DASHBOARD_ERROR_PATH=/logs/access.log
+                - TRAEFIK_LOG_DASHBOARD_ERROR_PATH=/logs/traefik.log
                 # Authentication
                 - TRAEFIK_LOG_DASHBOARD_AUTH_TOKEN=d41d8cd98f00b204e9800998ecf8427e
                 # System Monitoring
@@ -357,12 +357,18 @@ jobs:
               volumes:
                 - ./data/dashboard:/app/data
                 - ./data/positions:/data
+                - ./data/geoip:/geoip:ro
               environment:
-                - NEXT_PUBLIC_API_URL=http://traefik-agent:5000
+                - AGENT_API_URL=http://traefik-agent:5000
                 - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
                 - AGENT_NAME=Default Agent
                 - ENABLE_BACKGROUND_SCHEDULER=true
-                - NEXT_PUBLIC_SHOW_DEMO_PAGE=false
+                - GEOIP_LOOKUP_ENABLED=true
+                - GEOIP_LOCAL_DB_PATH=/geoip/GeoLite2-City.mmdb
+                - GEOIP_UNKNOWN_CACHE_TTL_MS=300000
+                - SHOW_DEMO_PAGE=false
+                - MOBILE_API_KEY=
+                
               ports:
                 - "3000:3000"
               depends_on:
