@@ -15,7 +15,7 @@ describe('getRuntimeConfig', () => {
       basePath: '/dashboard',
       baseDomain: 'https://example.com',
       defaultAgentUrl: 'http://agent:5000',
-      defaultAgentToken: 'secret',
+      defaultAgentConfigured: true,
       refreshIntervalMs: 2000,
       maxLogsDisplay: 1234,
       trafficTopItemsLimit: 25,
@@ -32,7 +32,7 @@ describe('getRuntimeConfig', () => {
     expect(cfg.basePath).toBe('/dashboard');
     expect(cfg.baseDomain).toBe('https://example.com');
     expect(cfg.defaultAgentUrl).toBe('http://agent:5000');
-    expect(cfg.defaultAgentToken).toBe('secret');
+    expect(cfg.defaultAgentConfigured).toBe(true);
     expect(cfg.refreshIntervalMs).toBe(2000);
     expect(cfg.maxLogsDisplay).toBe(1234);
     expect(cfg.trafficTopItemsLimit).toBe(25);

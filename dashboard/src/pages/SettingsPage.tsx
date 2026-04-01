@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router';
 import {
   Server,
   Bell,
-  Database,
   Filter,
   ChevronRight,
 } from 'lucide-react';

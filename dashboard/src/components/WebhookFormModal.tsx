@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // eslint-disable-line no-restricted-syntax
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X } from 'lucide-react';
@@ -31,6 +31,7 @@ export default function WebhookFormModal({
   const [saving, setSaving] = useState(false);
 
   // Reset form when modal opens or webhook changes
+  // eslint-disable-next-line no-restricted-syntax -- form reset on prop change
   useEffect(() => {
     if (isOpen) {
       if (webhook) {

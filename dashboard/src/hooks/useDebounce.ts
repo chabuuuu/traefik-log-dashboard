@@ -3,7 +3,7 @@
  * Replaces standalone debounce function with proper cleanup
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // eslint-disable-line no-restricted-syntax
 
 /**
  * Hook to debounce a value
@@ -16,6 +16,7 @@ import { useState, useEffect } from 'react';
 export function useDebounce<T>(value: T, delay: number = 500): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
+  // eslint-disable-next-line no-restricted-syntax -- debounce requires dependency tracking
   useEffect(() => {
     // Set up timeout to update debounced value
     const handler = setTimeout(() => {

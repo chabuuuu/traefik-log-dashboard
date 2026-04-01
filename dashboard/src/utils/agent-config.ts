@@ -14,6 +14,6 @@ export function getAgentConfig() {
       : 'http://localhost:5000';
   return {
     url: runtime.defaultAgentUrl || sameOrigin,
-    token: runtime.defaultAgentToken || '',
+    token: '',
   };
 }

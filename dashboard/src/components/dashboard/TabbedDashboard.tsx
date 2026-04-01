@@ -55,7 +55,6 @@ interface TabbedDashboardProps {
   onShowInternalTraffic?: () => void;
   demoMode?: boolean;
   agentId?: string;
-  agentName?: string;
 }
 
 export default function TabbedDashboard({
@@ -66,7 +65,6 @@ export default function TabbedDashboard({
   onShowInternalTraffic,
   demoMode = false,
   agentId,
-  agentName,
 }: TabbedDashboardProps) {
   const { config } = useConfig();
   const { geoLocations, isLoadingGeo, diagnostic } = useGeoLocation(logs, {
@@ -98,8 +96,8 @@ export default function TabbedDashboard({
     if (sortedLogs.length === 0) {
       return getEmptyMetrics();
     }
-    return calculateMetrics(sortedLogs, geoLocations);
-  }, [sortedLogs, geoLocations]);
+    return calculateMetrics(sortedLogs, geoLocations, config.trafficTopItemsLimit);
+  }, [sortedLogs, geoLocations, config.trafficTopItemsLimit]);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },

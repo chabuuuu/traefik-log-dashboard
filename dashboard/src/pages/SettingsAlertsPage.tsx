@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // eslint-disable-line no-restricted-syntax
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -51,6 +51,7 @@ export default function AlertsSettingsPage() {
     setStats(statsResponse);
   }, []);
 
+  // eslint-disable-next-line no-restricted-syntax -- initial data load on mount
   useEffect(() => {
     loadData().catch((error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to load alerting settings');

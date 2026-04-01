@@ -26,6 +26,7 @@ export default function AgentSelector({ className }: AgentSelectorProps) {
   const [isChecking, setIsChecking] = React.useState<Record<string, boolean>>({});
   const hasCheckedRef = React.useRef<Set<string>>(new Set());
 
+  // eslint-disable-next-line no-restricted-syntax
   React.useEffect(() => {
     // Only check status of selected agent on mount (not all agents)
     // This prevents sending too many requests which can trigger rate limiting

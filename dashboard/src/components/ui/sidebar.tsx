@@ -103,6 +103,7 @@ const SidebarProvider = React.forwardRef<
     }, [isMobile, setOpen, setOpenMobile])
 
     // Adds a keyboard shortcut to toggle the sidebar.
+    // eslint-disable-next-line no-restricted-syntax -- keyboard shortcut listener
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
         if (

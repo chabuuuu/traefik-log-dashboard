@@ -12,7 +12,7 @@ services:
     environment:
       # Log Paths
       - TRAEFIK_LOG_DASHBOARD_ACCESS_PATH=/logs/access.log
-      - TRAEFIK_LOG_DASHBOARD_ERROR_PATH=/logs/access.log
+      - TRAEFIK_LOG_DASHBOARD_ERROR_PATH=/logs/traefik.log
 
       # Authentication - REPLACE WITH YOUR TOKEN
       - TRAEFIK_LOG_DASHBOARD_AUTH_TOKEN=d41d8cd98f00b204e9800998ecf8427e

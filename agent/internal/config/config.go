@@ -65,7 +65,7 @@ func Load() *Config {
 		MonitorInterval:        getEnvInt("TRAEFIK_LOG_DASHBOARD_MONITOR_INTERVAL", 2000),
 		LogFormat:              getEnv("TRAEFIK_LOG_DASHBOARD_LOG_FORMAT", "json"),
 		StreamBatchLines:       getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_BATCH_LINES", 400),
-		StreamFlushIntervalMS:  getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_FLUSH_INTERVAL_MS", 1000),
+		StreamFlushIntervalMS:  getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_FLUSH_INTERVAL_MS", 500),
 		StreamMaxClients:       getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_CLIENTS", 50),
 		StreamMaxDurationSec:   getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_DURATION_SEC", 300),
 		StreamMaxBytesPerBatch: getEnvInt("TRAEFIK_LOG_DASHBOARD_STREAM_MAX_BYTES_PER_BATCH", 512*1024),

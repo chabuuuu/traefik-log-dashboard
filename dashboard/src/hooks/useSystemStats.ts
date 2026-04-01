@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // eslint-disable-line no-restricted-syntax
 import { apiClient } from '@/utils/api-client';
 import { useTabVisibility } from './useTabVisibility';
 import { SystemStatsResponse } from '@/utils/types';
@@ -11,6 +11,7 @@ export function useSystemStats(demoMode: boolean) {
   // REDUNDANCY FIX: Use shared visibility hook
   const isTabVisible = useTabVisibility();
 
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     let isMounted = true;
     const abortController = new AbortController();

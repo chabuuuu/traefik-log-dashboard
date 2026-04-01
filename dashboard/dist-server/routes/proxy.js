@@ -1,41 +1,81 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getAgentIDFromRequest = getAgentIDFromRequest;
+exports.normalizeProxyTarget = normalizeProxyTarget;
 const express_1 = require("express");
 const http_proxy_middleware_1 = require("http-proxy-middleware");
 const db_1 = require("../db");
 const router = (0, express_1.Router)();
-// Dynamic proxy — reads selected agent from DB on each request
-function getTargetUrl() {
-    const agent = (0, db_1.getSelectedAgent)();
-    if (!agent)
-        return 'http://localhost:5000';
-    // Use configured_url (internal Docker URL) for server-side proxying,
-    // falling back to the browser-facing url
-    const url = (agent.configured_url || agent.url).replace(/\/+$/, '');
-    return url;
+function getAgentIDFromRequest(req) {
+    const raw = req.header('x-agent-id');
+    if (!raw) {
+        return '';
+    }
+    return raw.trim();
 }
-function getAuthToken() {
-    const agent = (0, db_1.getSelectedAgent)();
-    return agent?.token || '';
+function normalizeProxyTarget(url) {
+    const normalized = url.replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(normalized)) {
+        return normalized;
+    }
+    return `http://${normalized}`;
 }
-// Proxy /api/logs/*, /api/system/*, /api/location/* to the selected agent
-const proxyPaths = ['/api/logs', '/api/system', '/api/location'];
+function resolveProxyAgent(req, res, next) {
+    const agentID = getAgentIDFromRequest(req);
+    if (!agentID) {
+        res.status(400).json({
+            error: 'Missing agent id',
+            message: 'X-Agent-Id header is required',
+        });
+        return;
+    }
+    const agent = (0, db_1.getAgentById)(agentID);
+    if (!agent) {
+        res.status(404).json({
+            error: 'Agent not found',
+            message: `Agent ${agentID} does not exist`,
+        });
+        return;
+    }
+    req.proxyAgent = {
+        id: agent.id,
+        target: normalizeProxyTarget(agent.configured_url || agent.url),
+        token: agent.token || '',
+    };
+    next();
+}
+// Proxy /api/logs/* and /api/system/* to the requested agent.
+// /api/location/* is handled locally by dashboard/server/routes/location.ts
+const proxyPaths = ['/api/logs', '/api/system'];
 for (const basePath of proxyPaths) {
-    router.use(basePath, (0, http_proxy_middleware_1.createProxyMiddleware)({
-        router: () => getTargetUrl(),
+    router.use(basePath, resolveProxyAgent, (0, http_proxy_middleware_1.createProxyMiddleware)({
+        router: (req) => req.proxyAgent?.target || 'http://localhost:5000',
         changeOrigin: true,
         on: {
-            proxyReq: (proxyReq) => {
-                const token = getAuthToken();
+            proxyReq: (proxyReq, req) => {
+                // Express strips the mount prefix from req.url when using
+                // router.use(basePath, ...). Restore the full path so the
+                // agent receives the correct URL (e.g. /api/logs/access
+                // instead of just /access).
+                const originalUrl = req.originalUrl;
+                if (originalUrl) {
+                    proxyReq.path = originalUrl;
+                }
+                const token = req.proxyAgent?.token || '';
                 if (token) {
                     proxyReq.setHeader('Authorization', `Bearer ${token}`);
                 }
+                else {
+                    proxyReq.removeHeader('Authorization');
+                }
             },
-            error: (err, _req, res) => {
+            error: (err, req, res) => {
+                const agentID = req.proxyAgent?.id || 'unknown';
                 console.error(`Proxy error: ${err.message}`);
                 if (res && 'writeHead' in res) {
                     res.status(502).json({
                         error: 'Agent unreachable',
+                        agentId: agentID,
                         message: err.message,
                     });
                 }

@@ -25,6 +25,7 @@ export default function FilterSettingsPage() {
   const { settings, updateSettings, resetSettings, addCustomCondition, removeCustomCondition, updateCustomCondition } = useFilters();
 
   const [newIP, setNewIP] = useState('');
+  const [newInternalIPRange, setNewInternalIPRange] = useState('');
   const [newStatusCode, setNewStatusCode] = useState('');
   const [newPath, setNewPath] = useState('');
   const [newCustomHeader, setNewCustomHeader] = useState('');
@@ -57,6 +58,23 @@ export default function FilterSettingsPage() {
   const handleRemoveIP = (ip: string) => {
     updateSettings({
       excludedIPs: settings.excludedIPs.filter((i) => i !== ip),
+    });
+    showSavedIndicator();
+  };
+
+  const handleAddInternalIPRange = () => {
+    if (newInternalIPRange.trim()) {
+      updateSettings({
+        internalIPRanges: [...settings.internalIPRanges, newInternalIPRange.trim()],
+      });
+      setNewInternalIPRange('');
+      showSavedIndicator();
+    }
+  };
+
+  const handleRemoveInternalIPRange = (range: string) => {
+    updateSettings({
+      internalIPRanges: settings.internalIPRanges.filter((r) => r !== range),
     });
     showSavedIndicator();
   };
@@ -340,6 +358,53 @@ export default function FilterSettingsPage() {
                         <span className="text-sm font-mono text-foreground">{ip}</span>
                         <Button
                           onClick={() => handleRemoveIP(ip)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                        >
+                          <X className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Internal IP Ranges */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Internal IP Ranges ({settings.internalIPRanges.length})
+                </label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  IPs or CIDR ranges filtered when &quot;Hide Internal Traffic&quot; is enabled
+                </p>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={newInternalIPRange}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewInternalIPRange(e.target.value)}
+                    onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAddInternalIPRange()}
+                    placeholder="IP or CIDR (e.g., 10.0.0.0/8)"
+                    className="flex-1 px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground"
+                  />
+                  <Button onClick={handleAddInternalIPRange} size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {settings.internalIPRanges.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No internal IP ranges defined
+                    </p>
+                  ) : (
+                    settings.internalIPRanges.map((range) => (
+                      <div
+                        key={range}
+                        className="flex items-center justify-between p-2 bg-warning-muted border border-warning/30 rounded-lg"
+                      >
+                        <span className="text-sm font-mono text-foreground">{range}</span>
+                        <Button
+                          onClick={() => handleRemoveInternalIPRange(range)}
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 p-0"

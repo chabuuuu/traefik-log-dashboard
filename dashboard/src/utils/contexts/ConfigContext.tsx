@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'; // eslint-disable-line no-restricted-syntax
+import { useMountEffect } from '@/hooks/useMountEffect';
 
 export interface DashboardConfig {
   basePath: string;
   baseDomain: string;
   showDemoPage: boolean;
+  skipIntroPage: boolean;
   refreshIntervalMs: number;
   maxLogsDisplay: number;
   maxHistoryLoad: number;
@@ -14,7 +16,7 @@ export interface DashboardConfig {
   internalNoisePathPrefixes: string[];
   internalNoiseServicePatterns: string[];
   defaultAgentUrl?: string;
-  defaultAgentToken?: string;
+  defaultAgentConfigured?: boolean;
   chartPalette: string[];
   density: 'compact' | 'comfortable';
   themeTokens?: Record<string, string>;
@@ -24,6 +26,7 @@ const defaultConfig: DashboardConfig = {
   basePath: '',
   baseDomain: '',
   showDemoPage: true,
+  skipIntroPage: false,
   refreshIntervalMs: 5000,
   maxLogsDisplay: 1000,
   maxHistoryLoad: 5000,
@@ -88,7 +91,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     error: null,
   });
 
-  useEffect(() => {
+  useMountEffect(() => {
     let isMounted = true;
     const inlineConfig = getInlineConfig();
 
@@ -121,8 +124,9 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  });
 
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const tokens = state.config.themeTokens;

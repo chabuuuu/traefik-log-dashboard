@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // eslint-disable-line no-restricted-syntax
 import { TraefikLog, GeoLocation } from '@/utils/types';
 import { aggregateGeoLocations } from '@/utils/location';
 import { sortLogsByTime } from '@/utils/utils/log-utils';
@@ -130,6 +130,7 @@ export function useGeoLocation(logs: TraefikLog[], options: UseGeoLocationOption
   const [debouncedLogs, setDebouncedLogs] = useState(logs);
 
   // Debounce logs
+  // eslint-disable-next-line no-restricted-syntax -- debounce requires dependency tracking
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedLogs(logs);
@@ -145,6 +146,7 @@ export function useGeoLocation(logs: TraefikLog[], options: UseGeoLocationOption
   }, [debouncedLogs]);
 
   // Fetch GeoIP data
+  // eslint-disable-next-line no-restricted-syntax -- data fetch with dependency tracking
   useEffect(() => {
     let isMounted = true;
 

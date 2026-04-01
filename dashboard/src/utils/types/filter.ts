@@ -31,6 +31,7 @@ export interface FilterSettings {
   excludeBots: boolean;
   excludePaths: string[];
   hideInternalTraffic: boolean;
+  internalIPRanges: string[];
 }
 
 export const defaultFilterSettings: FilterSettings = {
@@ -50,4 +51,5 @@ export const defaultFilterSettings: FilterSettings = {
   excludeBots: false,
   excludePaths: [],
   hideInternalTraffic: false,
+  internalIPRanges: [],
 };

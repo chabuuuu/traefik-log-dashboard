@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // eslint-disable-line no-restricted-syntax
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
@@ -191,6 +191,7 @@ export default function AlertRuleFormModal({
   };
 
   // Reset form when modal opens or alert changes
+  // eslint-disable-next-line no-restricted-syntax -- form reset on prop change
   useEffect(() => {
     if (isOpen) {
       if (alert) {
@@ -225,7 +226,7 @@ export default function AlertRuleFormModal({
       setErrors({});
       setExpandedSection('basic');
     }
-  }, [isOpen, alert]);
+  }, [isOpen, alert?.id]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};

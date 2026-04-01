@@ -226,8 +226,16 @@ export class APIClient {
 
         for (const eventChunk of events) {
           const lines = eventChunk.split('\n');
+          let eventName = 'message';
           for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventName = line.slice(7).trim() || 'message';
+              continue;
+            }
             if (!line.startsWith('data: ')) {
+              continue;
+            }
+            if (eventName === 'cursor') {
               continue;
             }
             try {

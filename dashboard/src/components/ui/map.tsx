@@ -65,7 +65,7 @@ import { useTheme } from "next-themes"
 import {
     createContext,
     useContext,
-    useEffect,
+    useEffect, // eslint-disable-line no-restricted-syntax
     useCallback,
     useRef,
     useState,
@@ -206,6 +206,7 @@ function MapTileLayer({
             : (attribution ??
               '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>')
 
+    // eslint-disable-next-line no-restricted-syntax -- map layer registration with deps
     useEffect(() => {
         if (context) {
             context.registerTileLayer({
@@ -237,6 +238,7 @@ function MapLayerGroup({
 }: LayerGroupProps & MapLayerGroupOption & { ref?: Ref<LLayerGroup> }) {
     const context = useMapLayersContext()
 
+    // eslint-disable-next-line no-restricted-syntax -- map layer group registration
     useEffect(() => {
         if (context) {
             context.registerLayerGroup({
@@ -260,6 +262,7 @@ function MapFeatureGroup({
 }: LayerGroupProps & MapLayerGroupOption & { ref?: Ref<LFeatureGroup> }) {
     const context = useMapLayersContext()
 
+    // eslint-disable-next-line no-restricted-syntax -- map feature group registration
     useEffect(() => {
         if (context) {
             context.registerLayerGroup({
@@ -312,6 +315,7 @@ function MapLayers({
         })
     }
 
+    // eslint-disable-next-line no-restricted-syntax -- tile layer default validation
     useEffect(() => {
         // Error: Invalid defaultValue
         if (
@@ -750,29 +754,39 @@ function MapLocateControl({
     const [isLocating, setIsLocating] = useDebounceLoadingState(200)
     const [position, setPosition] = useState<LatLngExpression | null>(null)
 
+    const onLocationFoundRef = useRef(onLocationFound)
+    onLocationFoundRef.current = onLocationFound
+    const onLocationErrorRef = useRef(onLocationError)
+    onLocationErrorRef.current = onLocationError
+
+    const onLocationFoundHandler = useCallback((location: LocationEvent) => {
+        setPosition(location.latlng)
+        setIsLocating(false)
+        onLocationFoundRef.current?.(location)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps -- reads from ref
+
+    const onLocationErrorHandler = useCallback((error: ErrorEvent) => {
+        setPosition(null)
+        setIsLocating(false)
+        onLocationErrorRef.current?.(error)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps -- reads from ref
+
     function startLocating() {
         setIsLocating(true)
         map.locate({ setView: true, maxZoom: map.getMaxZoom(), watch })
-        map.on("locationfound", (location: LocationEvent) => {
-            setPosition(location.latlng)
-            setIsLocating(false)
-            onLocationFound?.(location)
-        })
-        map.on("locationerror", (error: ErrorEvent) => {
-            setPosition(null)
-            setIsLocating(false)
-            onLocationError?.(error)
-        })
+        map.on("locationfound", onLocationFoundHandler)
+        map.on("locationerror", onLocationErrorHandler)
     }
 
     const stopLocating = useCallback(() => {
         map.stopLocate()
-        map.off("locationfound")
-        map.off("locationerror")
+        map.off("locationfound", onLocationFoundHandler)
+        map.off("locationerror", onLocationErrorHandler)
         setPosition(null)
         setIsLocating(false)
-    }, [map])
+    }, [map, onLocationFoundHandler, onLocationErrorHandler])
 
+    // eslint-disable-next-line no-restricted-syntax -- cleanup on unmount
     useEffect(() => () => stopLocating(), [stopLocating])
 
     return (
@@ -851,21 +865,24 @@ function MapDrawControl({
     const editControlRef = useRef<EditToolbar.Edit | null>(null)
     const deleteControlRef = useRef<EditToolbar.Delete | null>(null)
     const [activeMode, setActiveMode] = useState<MapDrawMode>(null)
+    const onLayersChangeRef = useRef(onLayersChange)
+    onLayersChangeRef.current = onLayersChange
 
     function handleDrawCreated(event: DrawEvents.Created) {
         if (!featureGroupRef.current) return
         const { layer } = event
         featureGroupRef.current.addLayer(layer)
-        onLayersChange?.(featureGroupRef.current)
+        onLayersChangeRef.current?.(featureGroupRef.current)
         setActiveMode(null)
     }
 
     function handleDrawEditedOrDeleted() {
         if (!featureGroupRef.current) return
-        onLayersChange?.(featureGroupRef.current)
+        onLayersChangeRef.current?.(featureGroupRef.current)
         setActiveMode(null)
     }
 
+    // eslint-disable-next-line no-restricted-syntax -- Leaflet draw event binding
     useEffect(() => {
         if (!L || !LeafletDraw) return
 
@@ -884,7 +901,8 @@ function MapDrawControl({
             map.off(L.Draw.Event.EDITED, handleDrawEditedOrDeleted)
             map.off(L.Draw.Event.DELETED, handleDrawEditedOrDeleted)
         }
-    }, [L, LeafletDraw, map, onLayersChange, handleDrawCreated, handleDrawEditedOrDeleted])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onLayersChange accessed via ref, handlers stable within effect
+    }, [L, LeafletDraw, map])
 
     return (
         <MapDrawContext.Provider
@@ -922,6 +940,7 @@ function MapDrawShapeButton<T extends Draw.Feature>({
     const { activeMode, setActiveMode } = drawContext
     const isActive = activeMode === drawMode
 
+    // eslint-disable-next-line no-restricted-syntax -- draw tool activation
     useEffect(() => {
         if (!L || !isActive) {
             controlRef.current?.disable()
@@ -1120,6 +1139,7 @@ function MapDrawActionButton<T extends EditToolbar.Edit | EditToolbar.Delete>({
     const isActive = activeMode === drawAction
     const hasFeatures = featureGroup?.getLayers().length ?? 0 > 0
 
+    // eslint-disable-next-line no-restricted-syntax -- draw edit/delete activation
     useEffect(() => {
         if (!L || !featureGroup || !isActive) {
             controlRef.current?.disable?.()
@@ -1170,6 +1190,7 @@ function MapDrawEdit({
         throw new Error("MapDrawEdit must be used within MapDrawControl")
     }
 
+    // eslint-disable-next-line no-restricted-syntax -- Leaflet draw icon config
     useEffect(() => {
         if (!L || !mapDrawHandleIcon) return
 
@@ -1273,6 +1294,7 @@ function MapControlContainer({
     const { L } = useLeaflet()
     const containerRef = useRef<HTMLDivElement>(null)
 
+    // eslint-disable-next-line no-restricted-syntax -- Leaflet DOM event suppression
     useEffect(() => {
         if (!L) return
         const element = containerRef.current
@@ -1308,6 +1330,7 @@ function useLeaflet() {
         typeof import("leaflet-draw") | null
     >(null)
 
+    // eslint-disable-next-line no-restricted-syntax -- dynamic Leaflet module loading
     useEffect(() => {
         if (L && LeafletDraw) return
         if (typeof window !== "undefined") {
@@ -1333,6 +1356,7 @@ function useDebounceLoadingState(delay = 200) {
     const [showLoading, setShowLoading] = useState(false)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+    // eslint-disable-next-line no-restricted-syntax -- delayed loading indicator
     useEffect(() => {
         if (isLoading) {
             timeoutRef.current = setTimeout(() => {

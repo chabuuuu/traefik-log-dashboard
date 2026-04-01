@@ -1,13 +1,21 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Activity, BarChart3, Terminal, Server, Gauge, Shield, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConfig } from '@/utils/contexts/ConfigContext';
+import { useMountEffect } from '@/hooks/useMountEffect';
 
 export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
   const { config } = useConfig();
   const showDemoPage = config.showDemoPage;
+  const navigate = useNavigate();
+
+  useMountEffect(() => {
+    if (config.skipIntroPage) {
+      navigate({ to: '/dashboard' });
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background">

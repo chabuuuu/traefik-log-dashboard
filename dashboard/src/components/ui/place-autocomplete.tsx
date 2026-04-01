@@ -157,6 +157,7 @@ function buildSearchUrl({
 function useDebounce<T>(value: T, delay: number = 300) {
     const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
 
+    // eslint-disable-next-line no-restricted-syntax -- debounce requires dependency tracking
     React.useEffect(() => {
         const timer = setTimeout(() => setDebouncedValue(value), delay)
         return () => clearTimeout(timer)
@@ -168,9 +169,17 @@ function useDebounce<T>(value: T, delay: number = 300) {
 function usePlaceSearch({
     debounceMs,
     query,
-    ...props
+    lang,
+    limit,
+    bbox,
+    lat,
+    lon,
+    zoom,
+    locationBiasScale,
+    onResultsChange,
 }: {
     debounceMs: number
+    onResultsChange?: (results: PlaceFeature[]) => void
 } & PlaceSearchOptions) {
     const [results, setResults] = React.useState<PlaceFeature[]>([])
     const [isLoading, setIsLoading] = React.useState(false)
@@ -179,9 +188,15 @@ function usePlaceSearch({
 
     const debouncedQuery = useDebounce(query, debounceMs)
 
+    const onResultsChangeRef = React.useRef(onResultsChange)
+    // eslint-disable-next-line no-restricted-syntax -- keep ref current without re-triggering fetch effect
+    React.useEffect(() => { onResultsChangeRef.current = onResultsChange }, [onResultsChange])
+
+    // eslint-disable-next-line no-restricted-syntax -- search on debounced query change
     React.useEffect(() => {
         if (!debouncedQuery.trim()) {
             setResults([])
+            onResultsChangeRef.current?.([])
             setIsLoading(false)
             setHasSearched(false)
             return
@@ -195,7 +210,7 @@ function usePlaceSearch({
             setHasSearched(true)
 
             try {
-                const url = buildSearchUrl({ query: debouncedQuery, ...props })
+                const url = buildSearchUrl({ query: debouncedQuery, lang, limit, bbox, lat, lon, zoom, locationBiasScale })
                 const response = await fetch(url, {
                     signal: abortController.signal,
                 })
@@ -215,10 +230,12 @@ function usePlaceSearch({
                     return true
                 })
                 setResults(dedupedFeatures)
+                onResultsChangeRef.current?.(dedupedFeatures)
             } catch (err) {
                 if (err instanceof Error && err.name !== "AbortError") {
                     setError(err)
                     setResults([])
+                    onResultsChangeRef.current?.([])
                 }
             } finally {
                 setIsLoading(false)
@@ -230,7 +247,13 @@ function usePlaceSearch({
         return () => abortController.abort()
     }, [
         debouncedQuery,
-        props,
+        lang,
+        limit,
+        bbox,
+        lat,
+        lon,
+        zoom,
+        locationBiasScale,
     ])
 
     return { results, isLoading, error, hasSearched }
@@ -269,11 +292,8 @@ function PlaceAutocomplete({
         lon,
         zoom,
         locationBiasScale,
+        onResultsChange,
     })
-
-    React.useEffect(() => {
-        onResultsChange?.(results)
-    }, [results, onResultsChange])
 
     const hasNoResults =
         hasSearched && !isLoading && !error && results.length === 0

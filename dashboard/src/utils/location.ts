@@ -52,10 +52,8 @@ function cleanExpiredCache(): void {
 }
 
 // Start periodic cleanup (only in server context)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-let _cleanupInterval: NodeJS.Timeout | null = null;
 if (typeof window === 'undefined') {
-  _cleanupInterval = setInterval(cleanExpiredCache, CLEANUP_INTERVAL);
+  setInterval(cleanExpiredCache, CLEANUP_INTERVAL);
   if (import.meta.env.DEV) {
     console.warn('[GeoIP Cache] Periodic cleanup initialized (runs every 30 minutes)');
   }

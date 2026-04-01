@@ -1,5 +1,5 @@
 import type { TraefikLog } from '@/utils/types';
-import { buildLogKey, dedupeLogs } from '@/utils/utils/log-batching';
+import { buildLogKey } from '@/utils/utils/log-batching';
 
 /**
  * Module-level singleton store for log state.
@@ -39,7 +39,7 @@ let state: LogStoreState = {
 };
 
 let seenKeys: Set<string> = new Set();
-let positionMap: Map<string, number> = new Map(); // agentId → position
+const positionMap: Map<string, number> = new Map(); // agentId → position
 const listeners: Set<Listener> = new Set();
 
 // ── Helpers ─────────────────────────────────────────────────────────

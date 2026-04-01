@@ -56,7 +56,7 @@ function StatusCodeChart({ status2xx, status3xx, status4xx, status5xx, errorRate
                 dataKey="value"
                 nameKey="name"
               >
-                {data.map((entry, index) => {
+                {data.map((entry) => {
                   const originalIndex = ['2xx', '3xx', '4xx', '5xx'].indexOf(entry.name);
                   return (
                     <Cell key={entry.name} fill={COLORS[originalIndex]} />
