@@ -44,6 +44,51 @@ export function isPrivateIP(ip: string): boolean {
 }
 
 /**
+ * Check if an IPv4 address matches a CIDR range or exact IP
+ */
+export function matchesIPRange(ip: string, range: string): boolean {
+  if (!ip || !range) return false;
+
+  // Exact match
+  if (ip === range) return true;
+
+  // CIDR match (IPv4 only)
+  if (range.includes('/')) {
+    const [subnet, prefixStr] = range.split('/');
+    const prefix = parseInt(prefixStr, 10);
+    if (!Number.isFinite(prefix) || prefix < 0 || prefix > 32) return false;
+
+    const ipNum = ipToNumber(ip);
+    const subnetNum = ipToNumber(subnet);
+    if (ipNum === null || subnetNum === null) return false;
+
+    const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+    return (ipNum & mask) === (subnetNum & mask);
+  }
+
+  return false;
+}
+
+function ipToNumber(ip: string): number | null {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+  let num = 0;
+  for (const part of parts) {
+    const octet = parseInt(part, 10);
+    if (!Number.isFinite(octet) || octet < 0 || octet > 255) return null;
+    num = (num << 8) + octet;
+  }
+  return num >>> 0;
+}
+
+/**
+ * Check if an IP matches any entry in a list of CIDR ranges or exact IPs
+ */
+export function matchesAnyIPRange(ip: string, ranges: string[]): boolean {
+  return ranges.some((range) => matchesIPRange(ip, range.trim()));
+}
+
+/**
  * Extract IP address from client address string
  * Handles IPv6 addresses and port numbers
  */

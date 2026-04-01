@@ -134,6 +134,10 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
         ? newSettings.customConditions
         : prev.customConditions;
 
+      const mergedInternalIPRanges = newSettings.internalIPRanges !== undefined
+        ? newSettings.internalIPRanges
+        : prev.internalIPRanges;
+
       return {
         ...prev,
         ...newSettings,
@@ -142,6 +146,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
         excludeStatusCodes: mergedStatusCodes,
         proxySettings: mergedProxySettings,
         customConditions: mergedCustomConditions,
+        internalIPRanges: mergedInternalIPRanges,
       };
     });
   }, []);

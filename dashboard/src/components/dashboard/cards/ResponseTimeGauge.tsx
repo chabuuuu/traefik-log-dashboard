@@ -27,10 +27,10 @@ function getTextColor(ms: number): string {
 
 const MAX_MS = 2000;
 
-function GaugeItem({ label, description, value }: { label: string; description: string; value: number }) {
-  const color = getColor(value);
-  const textColor = getTextColor(value);
-  const percentage = Math.min((value / MAX_MS) * 100, 100);
+function GaugeItem({ label, description, value, noData }: { label: string; description: string; value: number; noData?: boolean }) {
+  const color = noData ? 'var(--muted-foreground)' : getColor(value);
+  const textColor = noData ? 'text-muted-foreground' : getTextColor(value);
+  const percentage = noData ? 0 : Math.min((value / MAX_MS) * 100, 100);
 
   const chartConfig = {
     value: { label, color },
@@ -58,10 +58,18 @@ function GaugeItem({ label, description, value }: { label: string; description: 
             background={{ fill: 'var(--muted)' }}
           />
           <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle">
-            <tspan className={`text-xl font-bold fill-current ${textColor}`} style={{ fill: color }}>
-              {value.toFixed(0)}
-            </tspan>
-            <tspan className="text-xs fill-muted-foreground" dx="2">ms</tspan>
+            {noData ? (
+              <tspan className="text-xl font-bold fill-muted-foreground" style={{ fill: 'var(--muted-foreground)' }}>
+                N/A
+              </tspan>
+            ) : (
+              <>
+                <tspan className={`text-xl font-bold fill-current ${textColor}`} style={{ fill: color }}>
+                  {value.toFixed(0)}
+                </tspan>
+                <tspan className="text-xs fill-muted-foreground" dx="2">ms</tspan>
+              </>
+            )}
           </text>
         </RadialBarChart>
       </ChartContainer>
@@ -88,9 +96,9 @@ function ResponseTimeGauge({ average, p95, p99, samples }: ResponseTimeGaugeProp
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-3 gap-2">
-          <GaugeItem label="Average" description="Mean response time" value={average} />
-          <GaugeItem label="P95" description="95% of requests" value={p95} />
-          <GaugeItem label="P99" description="99% of requests" value={p99} />
+          <GaugeItem label="Average" description="Mean response time" value={average} noData={samples === 0} />
+          <GaugeItem label="P95" description="95% of requests" value={p95} noData={samples === 0} />
+          <GaugeItem label="P99" description="99% of requests" value={p99} noData={samples === 0} />
         </div>
       </CardContent>
     </Card>

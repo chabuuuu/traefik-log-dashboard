@@ -5,6 +5,7 @@ export interface DashboardConfig {
   basePath: string;
   baseDomain: string;
   showDemoPage: boolean;
+  skipIntroPage: boolean;
   refreshIntervalMs: number;
   maxLogsDisplay: number;
   maxHistoryLoad: number;
@@ -25,6 +26,7 @@ const defaultConfig: DashboardConfig = {
   basePath: '',
   baseDomain: '',
   showDemoPage: true,
+  skipIntroPage: false,
   refreshIntervalMs: 5000,
   maxLogsDisplay: 1000,
   maxHistoryLoad: 5000,

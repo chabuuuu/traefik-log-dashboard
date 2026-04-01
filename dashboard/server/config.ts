@@ -45,6 +45,7 @@ function buildRuntimeConfig(): Record<string, unknown> {
   const agentUrl = pick('AGENT_API_URL', 'AGENT_URL');
   const agentToken = pick('AGENT_API_TOKEN', 'AGENT_TOKEN');
   const frontendAgentUrl = pick('DASHBOARD_DEFAULT_AGENT_URL');
+  const skipIntroPageRaw = pick('DASHBOARD_SKIP_INTRO');
   const hideInternalTrafficDefaultRaw = pick('DASHBOARD_HIDE_INTERNAL_TRAFFIC_DEFAULT');
   const internalNoisePathPrefixesRaw = pick('DASHBOARD_INTERNAL_NOISE_PATH_PREFIXES');
   const internalNoiseServicePatternsRaw = pick('DASHBOARD_INTERNAL_NOISE_SERVICE_PATTERNS');
@@ -66,6 +67,7 @@ function buildRuntimeConfig(): Record<string, unknown> {
     basePath,
     baseDomain,
     showDemoPage: toBool(showDemoRaw, true),
+    skipIntroPage: toBool(skipIntroPageRaw, false),
     refreshIntervalMs: toInt(refreshRaw, 5000),
     maxLogsDisplay: toInt(maxLogsRaw, 1000),
     trafficTopItemsLimit: Math.max(3, Math.min(200, toInt(trafficTopItemsRaw, 10))),

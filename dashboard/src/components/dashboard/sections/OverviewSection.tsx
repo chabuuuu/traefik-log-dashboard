@@ -49,7 +49,7 @@ function OverviewSection({ metrics }: OverviewSectionProps) {
         />
         <KpiCard
           title="Response Time"
-          value={`${metrics.responseTime.average.toFixed(0)}ms`}
+          value={metrics.responseTime.samples > 0 ? `${metrics.responseTime.average.toFixed(0)}ms` : 'N/A'}
           description={metrics.responseTime.samples > 0
             ? `P99: ${metrics.responseTime.p99.toFixed(0)}ms`
             : 'Duration unavailable for current log mix'}

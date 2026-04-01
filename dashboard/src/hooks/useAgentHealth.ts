@@ -180,24 +180,28 @@ export function useAgentHealth(options: HealthMonitorOptions = {}) {
     setIsMonitoring(false);
   }, [agents, checkSingleAgent]); // Removed healthMetrics from dependencies
 
+  // Stable ref for checkAllAgents to prevent interval teardown/recreation
+  const checkAllAgentsRef = useRef(checkAllAgents);
+  checkAllAgentsRef.current = checkAllAgents;
+
   // MEMORY LEAK FIX: Auto-check setup with proper dependencies and visibility check
   // eslint-disable-next-line no-restricted-syntax -- interval setup requires dependency tracking
   useEffect(() => {
     if (!enableAutoCheck || agents.length === 0 || !isTabVisible) return;
 
     // Initial check
-    checkAllAgents();
+    checkAllAgentsRef.current();
 
     // Set up interval
     const interval = setInterval(() => {
       // Double-check visibility before executing
       if (!document.hidden) {
-        checkAllAgents();
+        checkAllAgentsRef.current();
       }
     }, checkInterval);
 
     return () => clearInterval(interval);
-  }, [enableAutoCheck, checkInterval, agents.length, checkAllAgents, isTabVisible]); // FIXED: Added checkAllAgents and isTabVisible
+  }, [enableAutoCheck, checkInterval, agents.length, isTabVisible]);
 
   const getAgentHealth = useCallback((agentId: string): AgentHealthMetrics | null => {
     return healthMetrics[agentId] || null;

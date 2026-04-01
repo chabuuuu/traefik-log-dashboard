@@ -2,7 +2,7 @@
 
 import { TraefikLog } from '../types';
 import { FilterSettings, FilterCondition } from '../types/filter';
-import { isPrivateIP } from './ip-utils';
+import { isPrivateIP, matchesAnyIPRange } from './ip-utils';
 
 export interface InternalNoiseRules {
   pathPrefixes: string[];
@@ -167,8 +167,17 @@ export function applyFilters(
     .map((log) => replaceClientIP(log, settings)) // Replace client IP if enabled
     .filter((log) => {
       // Filter dashboard/agent internal noise
-      if (settings.hideInternalTraffic && isInternalNoiseLog(log, internalRules)) {
-        return false;
+      if (settings.hideInternalTraffic) {
+        if (isInternalNoiseLog(log, internalRules)) {
+          return false;
+        }
+        // Also filter IPs configured as "internal"
+        if (settings.internalIPRanges.length > 0) {
+          const clientIP = getRealIP(log, settings);
+          if (matchesAnyIPRange(clientIP, settings.internalIPRanges)) {
+            return false;
+          }
+        }
       }
 
       // Get real IP based on proxy settings
@@ -273,6 +282,9 @@ export function getActiveFilterSummary(settings: FilterSettings): string[] {
 
   if (settings.hideInternalTraffic) {
     summary.push('Internal traffic excluded');
+    if (settings.internalIPRanges.length > 0) {
+      summary.push(`${settings.internalIPRanges.length} internal IP ranges`);
+    }
   }
 
   const enabledCustom = settings.customConditions.filter(c => c.enabled).length;

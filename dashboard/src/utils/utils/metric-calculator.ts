@@ -21,7 +21,7 @@ function getAveragePositiveDuration(logs: TraefikLog[]): number {
   return calculateAverage(durations);
 }
 
-export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[] = []): DashboardMetrics {
+export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[] = [], topItemsLimit = 10): DashboardMetrics {
   // Request metrics
   const total = logs.length;
   const timeSpan = calculateTimeSpan(logs);
@@ -51,7 +51,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       method: routeLogs[0]?.RequestMethod || 'GET',
     }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .slice(0, topItemsLimit);
 
   // Backend services
   const backendGroups = groupBy(logs.filter(l => l.ServiceName), 'ServiceName');
@@ -79,7 +79,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       service: routerLogs[0]?.ServiceName || '',
     }))
     .sort((a, b) => b.requests - a.requests)
-    .slice(0, 10);
+    .slice(0, topItemsLimit);
 
   // Top Request Addresses
   const addressGroups = groupBy(logs.filter(l => l.RequestAddr), 'RequestAddr');
@@ -89,7 +89,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       count: addrLogs.length,
     }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .slice(0, topItemsLimit);
 
   // Top Request Hosts
   const hostGroups = groupBy(logs.filter(l => l.RequestHost), 'RequestHost');
@@ -99,7 +99,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       count: hostLogs.length,
     }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .slice(0, topItemsLimit);
 
   // Top Client IPs
   const clientIPGroups = groupBy(logs.filter(l => l.ClientHost), 'ClientHost');
@@ -109,7 +109,7 @@ export function calculateMetrics(logs: TraefikLog[], geoLocations: GeoLocation[]
       count: ipLogs.length,
     }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .slice(0, topItemsLimit);
 
   // User agents - Extract identifier, group, show top 11 + Others
   const userAgentIdentifierGroups: Record<string, string[]> = {};
