@@ -12,8 +12,8 @@
 
 | Component | Description | Image Size (linux/amd64) |
 |-----------|-------------|------------------------|
-| **Agent** | Lightweight Go service that parses Traefik logs and exposes metrics via REST API | <!-- AGENT_IMAGE_SIZE_START -->pending<!-- AGENT_IMAGE_SIZE_END --> |
-| **Dashboard** | Vite web UI with real-time analytics, charts, and geographic visualization | <!-- DASHBOARD_IMAGE_SIZE_START -->pending<!-- DASHBOARD_IMAGE_SIZE_END --> |
+| **Agent** | Lightweight Go service that parses Traefik logs and exposes metrics via REST API | <!-- AGENT_IMAGE_SIZE_START -->15MB<!-- AGENT_IMAGE_SIZE_END --> |
+| **Dashboard** | Vite web UI with real-time analytics, charts, and geographic visualization | <!-- DASHBOARD_IMAGE_SIZE_START -->151MB<!-- DASHBOARD_IMAGE_SIZE_END --> |
 | **CLI** | Terminal-based dashboard using Bubble Tea (optional) | N/A |
 
 ---
