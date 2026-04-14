@@ -97,6 +97,7 @@ jobs:
 
       - name: Build agent image for size calculation (linux/amd64)
         if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+        continue-on-error: true
         uses: docker/build-push-action@v5
         with:
           context: ./agent
@@ -114,13 +115,22 @@ jobs:
       - name: Calculate agent image size
         if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
         id: image_size
+        continue-on-error: true
         shell: bash
         run: |
           IMAGE_REF="local/traefik-log-dashboard-agent:size-${{ github.sha }}"
-          SIZE_BYTES="$(docker image inspect "${IMAGE_REF}" --format='{{.Size}}')"
-          SIZE_HUMAN="$(numfmt --to=iec --suffix=B "${SIZE_BYTES}")"
-          echo "Computed agent image size: ${SIZE_HUMAN}"
-          echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          SIZE_BYTES="$(docker image inspect "${IMAGE_REF}" --format='{{.Size}}' 2>/dev/null || true)"
+          if [ -n "${SIZE_BYTES}" ]; then
+            SIZE_HUMAN="$(numfmt --to=iec --suffix=B "${SIZE_BYTES}")"
+          else
+            SIZE_HUMAN=""
+          fi
+          if [ -n "${SIZE_HUMAN}" ]; then
+            echo "Computed agent image size: ${SIZE_HUMAN}"
+            echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Agent image size calculation skipped or failed"
+          fi
 
   # Build and push Dashboard Docker image
   build-dashboard:
@@ -187,6 +197,7 @@ jobs:
 
       - name: Build dashboard image for size calculation (linux/amd64)
         if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+        continue-on-error: true
         uses: docker/build-push-action@v5
         with:
           context: ./dashboard
@@ -202,13 +213,22 @@ jobs:
       - name: Calculate dashboard image size
         if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
         id: image_size
+        continue-on-error: true
         shell: bash
         run: |
           IMAGE_REF="local/traefik-log-dashboard:size-${{ github.sha }}"
-          SIZE_BYTES="$(docker image inspect "${IMAGE_REF}" --format='{{.Size}}')"
-          SIZE_HUMAN="$(numfmt --to=iec --suffix=B "${SIZE_BYTES}")"
-          echo "Computed dashboard image size: ${SIZE_HUMAN}"
-          echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          SIZE_BYTES="$(docker image inspect "${IMAGE_REF}" --format='{{.Size}}' 2>/dev/null || true)"
+          if [ -n "${SIZE_BYTES}" ]; then
+            SIZE_HUMAN="$(numfmt --to=iec --suffix=B "${SIZE_BYTES}")"
+          else
+            SIZE_HUMAN=""
+          fi
+          if [ -n "${SIZE_HUMAN}" ]; then
+            echo "Computed dashboard image size: ${SIZE_HUMAN}"
+            echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Dashboard image size calculation skipped or failed"
+          fi
 
   commit-readme-image-sizes:
     runs-on: ubuntu-latest
@@ -227,12 +247,26 @@ jobs:
         run: |
           AGENT_SIZE="${{ needs.build-agent.outputs.image_size_human }}"
           DASHBOARD_SIZE="${{ needs.build-dashboard.outputs.image_size_human }}"
-          sed -i -E "s|(<!-- AGENT_IMAGE_SIZE_START -->)[^<]*(<!-- AGENT_IMAGE_SIZE_END -->)|\1${AGENT_SIZE}\2|" README.md
-          sed -i -E "s|(<!-- DASHBOARD_IMAGE_SIZE_START -->)[^<]*(<!-- DASHBOARD_IMAGE_SIZE_END -->)|\1${DASHBOARD_SIZE}\2|" README.md
+          if [ -n "${AGENT_SIZE}" ]; then
+            sed -i -E "s|(<!-- AGENT_IMAGE_SIZE_START -->)[^<]*(<!-- AGENT_IMAGE_SIZE_END -->)|\1${AGENT_SIZE}\2|" README.md
+          else
+            echo "Agent image size output is empty; leaving README marker unchanged"
+          fi
+          if [ -n "${DASHBOARD_SIZE}" ]; then
+            sed -i -E "s|(<!-- DASHBOARD_IMAGE_SIZE_START -->)[^<]*(<!-- DASHBOARD_IMAGE_SIZE_END -->)|\1${DASHBOARD_SIZE}\2|" README.md
+          else
+            echo "Dashboard image size output is empty; leaving README marker unchanged"
+          fi
 
       - name: Commit README image size update
         shell: bash
         run: |
+          git fetch origin "${{ github.ref_name }}"
+          REMOTE_SHA="$(git rev-parse FETCH_HEAD)"
+          if [ "${REMOTE_SHA}" != "${{ github.sha }}" ]; then
+            echo "Remote branch moved to ${REMOTE_SHA}; refusing to push README update based on stale commit ${{ github.sha }}"
+            exit 0
+          fi
           if git diff --quiet -- README.md; then
             echo "README image sizes are already up to date"
             exit 0
@@ -249,11 +283,11 @@ jobs:
           Confidence: high
           Scope-risk: narrow
           Directive: Keep the README size markers stable or the workflow replacement step will fail
-          Tested: Marker replacement and README-only diff check in workflow
+          Tested: Marker replacement, README-only diff check, and remote SHA guard in workflow
           Not-tested: Branch protection rules that reject bot pushes
           EOF
           git commit -F /tmp/readme-image-size-commit-msg
-          git push
+          git push origin HEAD:${{ github.ref_name }}
 
   # Build CLI binaries for multiple platforms
   build-cli-binaries:
