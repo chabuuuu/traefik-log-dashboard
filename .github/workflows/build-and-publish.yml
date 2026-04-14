@@ -33,6 +33,8 @@ jobs:
   # Build and push Agent Docker image
   build-agent:
     runs-on: ubuntu-latest
+    outputs:
+      image_size_human: ${{ steps.image_size.outputs.size_human }}
     permissions:
       contents: read
       packages: write
@@ -93,9 +95,48 @@ jobs:
             COMMIT=${{ github.sha }}
             BUILD_TIME=${{ github.event.head_commit.timestamp }}
 
+      - name: Build agent image for size calculation (linux/amd64)
+        if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+        continue-on-error: true
+        uses: docker/build-push-action@v5
+        with:
+          context: ./agent
+          file: ./agent/Dockerfile
+          push: false
+          load: true
+          tags: local/traefik-log-dashboard-agent:size-${{ github.sha }}
+          cache-from: type=gha,scope=agent
+          platforms: linux/amd64
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp }}
+
+      - name: Calculate agent image size
+        if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+        id: image_size
+        continue-on-error: true
+        shell: bash
+        run: |
+          IMAGE_REF="local/traefik-log-dashboard-agent:size-${{ github.sha }}"
+          SIZE_BYTES="$(docker image inspect "${IMAGE_REF}" --format='{{.Size}}' 2>/dev/null || true)"
+          if [ -n "${SIZE_BYTES}" ]; then
+            SIZE_HUMAN="$(numfmt --to=iec --suffix=B "${SIZE_BYTES}")"
+          else
+            SIZE_HUMAN=""
+          fi
+          if [ -n "${SIZE_HUMAN}" ]; then
+            echo "Computed agent image size: ${SIZE_HUMAN}"
+            echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Agent image size calculation skipped or failed"
+          fi
+
   # Build and push Dashboard Docker image
   build-dashboard:
     runs-on: ubuntu-latest
+    outputs:
+      image_size_human: ${{ steps.image_size.outputs.size_human }}
     permissions:
       contents: read
       packages: write
@@ -153,6 +194,100 @@ jobs:
           cache-to: type=gha,mode=max,scope=dashboard
           build-args: |
             NEXT_PUBLIC_API_URL=/api
+
+      - name: Build dashboard image for size calculation (linux/amd64)
+        if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+        continue-on-error: true
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dashboard
+          file: ./dashboard/Dockerfile
+          push: false
+          load: true
+          tags: local/traefik-log-dashboard:size-${{ github.sha }}
+          cache-from: type=gha,scope=dashboard
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api
+
+      - name: Calculate dashboard image size
+        if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+        id: image_size
+        continue-on-error: true
+        shell: bash
+        run: |
+          IMAGE_REF="local/traefik-log-dashboard:size-${{ github.sha }}"
+          SIZE_BYTES="$(docker image inspect "${IMAGE_REF}" --format='{{.Size}}' 2>/dev/null || true)"
+          if [ -n "${SIZE_BYTES}" ]; then
+            SIZE_HUMAN="$(numfmt --to=iec --suffix=B "${SIZE_BYTES}")"
+          else
+            SIZE_HUMAN=""
+          fi
+          if [ -n "${SIZE_HUMAN}" ]; then
+            echo "Computed dashboard image size: ${SIZE_HUMAN}"
+            echo "size_human=${SIZE_HUMAN}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Dashboard image size calculation skipped or failed"
+          fi
+
+  commit-readme-image-sizes:
+    runs-on: ubuntu-latest
+    needs: [build-agent, build-dashboard]
+    if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/heads/')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Update README image sizes
+        shell: bash
+        run: |
+          AGENT_SIZE="${{ needs.build-agent.outputs.image_size_human }}"
+          DASHBOARD_SIZE="${{ needs.build-dashboard.outputs.image_size_human }}"
+          if [ -n "${AGENT_SIZE}" ]; then
+            sed -i -E "s|(<!-- AGENT_IMAGE_SIZE_START -->)[^<]*(<!-- AGENT_IMAGE_SIZE_END -->)|\1${AGENT_SIZE}\2|" README.md
+          else
+            echo "Agent image size output is empty; leaving README marker unchanged"
+          fi
+          if [ -n "${DASHBOARD_SIZE}" ]; then
+            sed -i -E "s|(<!-- DASHBOARD_IMAGE_SIZE_START -->)[^<]*(<!-- DASHBOARD_IMAGE_SIZE_END -->)|\1${DASHBOARD_SIZE}\2|" README.md
+          else
+            echo "Dashboard image size output is empty; leaving README marker unchanged"
+          fi
+
+      - name: Commit README image size update
+        shell: bash
+        run: |
+          git fetch origin "${{ github.ref_name }}"
+          REMOTE_SHA="$(git rev-parse FETCH_HEAD)"
+          if [ "${REMOTE_SHA}" != "${{ github.sha }}" ]; then
+            echo "Remote branch moved to ${REMOTE_SHA}; refusing to push README update based on stale commit ${{ github.sha }}"
+            exit 0
+          fi
+          if git diff --quiet -- README.md; then
+            echo "README image sizes are already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          cat > /tmp/readme-image-size-commit-msg <<'EOF'
+          Record current container image sizes in the root README
+
+          Automated branch update after calculating linux/amd64 sizes for the published agent and dashboard images.
+
+          Constraint: CI updates only README.md on branch pushes
+          Confidence: high
+          Scope-risk: narrow
+          Directive: Keep the README size markers stable or the workflow replacement step will fail
+          Tested: Marker replacement, README-only diff check, and remote SHA guard in workflow
+          Not-tested: Branch protection rules that reject bot pushes
+          EOF
+          git commit -F /tmp/readme-image-size-commit-msg
+          git push origin HEAD:${{ github.ref_name }}
 
   # Build CLI binaries for multiple platforms
   build-cli-binaries:
@@ -357,18 +492,19 @@ jobs:
               volumes:
                 - ./data/dashboard:/app/data
                 - ./data/positions:/data
-                - ./data/geoip:/geoip:ro
+                - ./data/geoip:/geoip:ro # Mount GeoIP database if using local GeoIP
               environment:
                 - AGENT_API_URL=http://traefik-agent:5000
                 - AGENT_API_TOKEN=d41d8cd98f00b204e9800998ecf8427e
                 - AGENT_NAME=Default Agent
                 - ENABLE_BACKGROUND_SCHEDULER=true
-                - GEOIP_LOOKUP_ENABLED=true
+                - DASHBOARD_REFRESH_INTERVAL_MS=5000
+                - DASHBOARD_MAX_LOGS_DISPLAY=1000
+                - SHOW_DEMO_PAGE=true
                 - GEOIP_LOCAL_DB_PATH=/geoip/GeoLite2-City.mmdb
                 - GEOIP_UNKNOWN_CACHE_TTL_MS=300000
-                - SHOW_DEMO_PAGE=false
-                - MOBILE_API_KEY=
-                
+                - NODE_ENV=production
+                - MOBILE_API_KEY=d41d8cd98f00b204e9800998ecf8427e #if you have a mobile app, set this to a secure random value and use it in the app to authenticate with the API
               ports:
                 - "3000:3000"
               depends_on:

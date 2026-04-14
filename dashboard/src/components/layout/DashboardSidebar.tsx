@@ -79,9 +79,9 @@ const settingsNavItems = [
 const socialItems: SocialItem[] = [
   {
     label: 'Play Store',
-    href: null,
+    href: `https://play.google.com/store/apps/details?id=com.traefik.logdashboard`,
     icon: PlayStoreIcon,
-    isComingSoon: true,
+    isComingSoon: false,
   },
   {
     label: 'App Store',
