@@ -33,6 +33,7 @@ interface AlertRuleRow {
   condition_operator: string;
   last_triggered_at: string | null;
   last_evaluated_at: string | null;
+  ping_urls: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -105,12 +106,14 @@ interface CreateAlertRuleInput {
   snapshot_window_minutes?: number;
   condition_operator?: AlertRule['condition_operator'];
   parameters: AlertParameterConfig[];
+  ping_urls?: string[];
 }
 
 interface UpdateAlertRuleInput {
   id: string;
   updates: Partial<Omit<AlertRule, 'id' | 'created_at' | 'updated_at' | 'parameters'>> & {
     parameters?: AlertParameterConfig[];
+    ping_urls?: string[];
   };
 }
 
@@ -147,6 +150,16 @@ function parseWebhookIDs(raw: string): string[] {
   }
 }
 
+function parsePingURLs(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((url): url is string => typeof url === 'string') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function toWebhook(row: AlertWebhookRow): AlertWebhook {
   return {
     id: row.id,
@@ -174,6 +187,7 @@ function toRule(row: AlertRuleRow, parameters: AlertParameterConfig[]): AlertRul
     snapshot_window_minutes: row.snapshot_window_minutes,
     condition_operator: row.condition_operator === 'all' ? 'all' : 'any',
     parameters,
+    ping_urls: parsePingURLs(row.ping_urls),
     last_triggered_at: row.last_triggered_at ?? undefined,
     last_evaluated_at: row.last_evaluated_at ?? undefined,
     created_at: row.created_at,
@@ -312,6 +326,12 @@ export function initAlertingSchema(): void {
       FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
     );
   `);
+
+  try {
+    db.prepare('ALTER TABLE alert_rules ADD COLUMN ping_urls TEXT').run();
+  } catch {
+    // column exists or other error
+  }
 }
 
 export function listAlertWebhooks(): AlertWebhook[] {
@@ -444,10 +464,11 @@ export function createAlertRule(input: CreateAlertRuleInput): AlertRule {
       schedule_time_utc,
       snapshot_window_minutes,
       condition_operator,
+      ping_urls,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.name,
@@ -460,6 +481,7 @@ export function createAlertRule(input: CreateAlertRuleInput): AlertRule {
     input.schedule_time_utc ?? null,
     input.snapshot_window_minutes ?? 5,
     input.condition_operator ?? 'any',
+    input.ping_urls ? JSON.stringify(input.ping_urls) : null,
     now,
     now,
   );
@@ -531,6 +553,11 @@ export function updateAlertRule(input: UpdateAlertRuleInput): AlertRule | null {
   if (input.updates.condition_operator !== undefined) {
     updates.push('condition_operator = ?');
     values.push(input.updates.condition_operator);
+  }
+
+  if (input.updates.ping_urls !== undefined) {
+    updates.push('ping_urls = ?');
+    values.push(input.updates.ping_urls ? JSON.stringify(input.updates.ping_urls) : null);
   }
 
   if (updates.length > 0) {

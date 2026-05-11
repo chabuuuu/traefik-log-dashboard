@@ -174,11 +174,13 @@ export default function AlertRuleFormModal({
     snapshot_window_minutes: 5,
     condition_operator: 'any' as 'any' | 'all',
     parameters: [] as AlertParameterConfig[],
+    ping_urls: [] as string[],
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<'basic' | 'webhooks' | 'parameters'>('basic');
+  const [expandedSection, setExpandedSection] = useState<'basic' | 'ping' | 'webhooks' | 'parameters'>('basic');
+  const [rawPingUrls, setRawPingUrls] = useState<string>('');
 
   // Initialize default parameters
   const initializeParameters = (): AlertParameterConfig[] => {
@@ -207,7 +209,9 @@ export default function AlertRuleFormModal({
           snapshot_window_minutes: alert.snapshot_window_minutes || (alert.trigger_type === 'daily_summary' ? 1440 : 5),
           condition_operator: alert.condition_operator || 'any',
           parameters: alert.parameters,
+          ping_urls: alert.ping_urls || [],
         });
+        setRawPingUrls(alert.ping_urls ? alert.ping_urls.join('\n') : '');
       } else {
         setFormData({
           name: '',
@@ -221,7 +225,9 @@ export default function AlertRuleFormModal({
           snapshot_window_minutes: 5,
           condition_operator: 'any',
           parameters: initializeParameters(),
+          ping_urls: [],
         });
+        setRawPingUrls('');
       }
       setErrors({});
       setExpandedSection('basic');
@@ -254,9 +260,10 @@ export default function AlertRuleFormModal({
 
     if (
       formData.trigger_type === 'threshold' &&
-      !enabledParams.some((param) => typeof param.threshold === 'number')
+      !enabledParams.some((param) => typeof param.threshold === 'number') &&
+      formData.ping_urls.length === 0
     ) {
-      newErrors.parameters = 'Threshold alerts require at least one threshold value';
+      newErrors.parameters = 'Threshold alerts require at least one threshold value or ping URLs';
     }
 
     setErrors(newErrors);
@@ -574,6 +581,51 @@ export default function AlertRuleFormModal({
                     Enable alert rule immediately
                   </label>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Active Health Checks (Ping) */}
+          <div className="border-2 border-border rounded-lg">
+            <button
+              type="button"
+              onClick={() => toggleSection('ping')}
+              className="w-full flex items-center justify-between p-4 hover:bg-accent"
+            >
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">Active Health Checks (Ping)</h3>
+                {formData.ping_urls.length > 0 && (
+                  <Badge variant="outline">{formData.ping_urls.length} URLs</Badge>
+                )}
+              </div>
+              {expandedSection === 'ping' ? (
+                <ChevronDown className="w-5 h-5" />
+              ) : (
+                <ChevronRight className="w-5 h-5" />
+              )}
+            </button>
+
+            {expandedSection === 'ping' && (
+              <div className="p-4 border-t border-border">
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  URLs to Health Check <span className="text-muted-foreground">(One per line)</span>
+                </label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  The dashboard will actively ping these URLs every interval and alert if any return a non-2xx status code.
+                </p>
+                <textarea
+                  value={rawPingUrls}
+                  onChange={e => {
+                    setRawPingUrls(e.target.value);
+                    handleInputChange(
+                      'ping_urls',
+                      e.target.value.split('\n').map(url => url.trim()).filter(Boolean)
+                    );
+                  }}
+                  placeholder="https://example.com/health&#10;https://api.example.com/status"
+                  rows={4}
+                  className="w-full px-3 py-2 border-2 border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground font-mono text-sm"
+                />
               </div>
             )}
           </div>

@@ -63,6 +63,7 @@ export interface AlertRule {
   snapshot_window_minutes: number; // Aggregation window used for snapshots
   condition_operator: AlertConditionOperator; // How multi-threshold rules are evaluated
   parameters: AlertParameterConfig[]; // Which metrics to include in notification
+  ping_urls?: string[];
   last_triggered_at?: string;
   last_evaluated_at?: string;
   created_at: string;

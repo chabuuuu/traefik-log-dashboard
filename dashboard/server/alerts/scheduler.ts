@@ -540,6 +540,85 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
     return false;
   }
 
+  // Handle active domain pinging
+  if (rule.ping_urls && rule.ping_urls.length > 0) {
+    if (!isIntervalDue(rule, context.now.getTime())) {
+      return false;
+    }
+
+    const failedUrls: string[] = [];
+    for (const url of rule.ping_urls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+           failedUrls.push(`${url} (Status: ${res.status})`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        failedUrls.push(`${url} (Error: ${msg})`);
+      }
+    }
+
+    const breached = failedUrls.length > 0;
+    const wasBreached = getAlertThresholdBreached(rule.id, 'dashboard-ping');
+
+    upsertAlertThresholdState({
+      ruleID: rule.id,
+      agentID: 'dashboard-ping',
+      breached,
+      updatedAt: context.now.toISOString(),
+    });
+
+    if (breached && !wasBreached) {
+      const payload = {
+        alert_rule_id: rule.id,
+        alert_rule_name: rule.name,
+        trigger_type: 'health_check',
+        failed_urls: failedUrls,
+      };
+
+      const title = `🚨 Service Down Alert: ${rule.name}`;
+      const message = `**The following services failed the health check:**\n\n` + 
+                      failedUrls.map((u) => `❌ \`${u}\``).join('\n') +
+                      `\n\n_Please check your infrastructure immediately._`;
+
+      await Promise.allSettled(
+        targetWebhooks.map(async (webhook) => {
+          const result = await sendWebhookNotification({
+            webhook,
+            title,
+            message,
+            metadata: payload,
+          });
+
+          createAlertNotificationHistory({
+            alert_rule_id: rule.id,
+            webhook_id: webhook.id,
+            status: result.success ? 'success' : 'failed',
+            error_message: result.error,
+            payload: JSON.stringify(payload),
+          });
+        }),
+      );
+
+      markAlertRuleEvaluation({
+        id: rule.id,
+        evaluatedAt: context.now.toISOString(),
+        triggeredAt: context.now.toISOString(),
+      });
+      return true;
+    }
+
+    markAlertRuleEvaluation({
+      id: rule.id,
+      evaluatedAt: context.now.toISOString(),
+    });
+    return false;
+  }
+
   const targetAgents = getRuleTargetAgents(rule);
   if (targetAgents.length === 0) {
     markAlertRuleEvaluation({

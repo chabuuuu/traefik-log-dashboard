@@ -249,6 +249,7 @@ function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule,
       snapshot_window_minutes: snapshotWindowMinutes,
       condition_operator: conditionOperator,
       parameters,
+      ping_urls: Array.isArray(parsed.ping_urls) ? parsed.ping_urls.filter((u): u is string => typeof u === 'string') : undefined,
     },
   };
 }
