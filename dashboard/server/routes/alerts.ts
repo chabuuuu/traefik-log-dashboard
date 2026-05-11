@@ -179,14 +179,16 @@ function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule,
 
   const parameters = normalizedParameters.value;
   const enabledParameters = parameters.filter((parameter) => parameter.enabled);
-  if (enabledParameters.length === 0) {
-    return { ok: false, error: 'At least one parameter must be enabled' };
+  const pingURLs = Array.isArray(parsed.ping_urls) ? parsed.ping_urls.filter((u): u is string => typeof u === 'string') : [];
+
+  if (enabledParameters.length === 0 && pingURLs.length === 0) {
+    return { ok: false, error: 'At least one parameter or ping URL must be enabled' };
   }
 
-  if (parsed.trigger_type === 'threshold') {
+  if (parsed.trigger_type === 'threshold' && pingURLs.length === 0) {
     const thresholdParameters = enabledParameters.filter((parameter) => typeof parameter.threshold === 'number');
     if (thresholdParameters.length === 0) {
-      return { ok: false, error: 'Threshold alerts require at least one threshold parameter' };
+      return { ok: false, error: 'Threshold alerts require at least one threshold parameter or ping URL' };
     }
   }
 
