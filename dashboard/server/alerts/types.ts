@@ -54,6 +54,7 @@ export interface AlertRule {
   snapshot_window_minutes: number;
   condition_operator: AlertConditionOperator;
   parameters: AlertParameterConfig[];
+  ping_urls?: string[];
   last_triggered_at?: string;
   last_evaluated_at?: string;
   created_at: string;

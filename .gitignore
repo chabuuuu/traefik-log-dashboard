@@ -127,5 +127,4 @@ dist
 .yarn/install-state.gz
 .pnp.*
 access.log
-./agent
-./data
+data
