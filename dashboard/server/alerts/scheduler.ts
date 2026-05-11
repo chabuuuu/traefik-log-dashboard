@@ -622,6 +622,12 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
     }
   }
 
+  // If no metric parameters are enabled, this rule is only for pinging.
+  const hasEnabledMetrics = rule.parameters && rule.parameters.some((p) => p.enabled);
+  if (!hasEnabledMetrics) {
+    return false; // Skip metrics evaluation entirely
+  }
+
   const targetAgents = getRuleTargetAgents(rule);
   if (targetAgents.length === 0) {
     markAlertRuleEvaluation({
