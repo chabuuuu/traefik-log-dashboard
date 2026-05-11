@@ -104,6 +104,7 @@ export interface AggregatedAlertMetrics {
   top_services?: Array<{ name: string; requests: number }>;
   top_hosts?: Array<{ host: string; count: number }>;
   top_request_addresses?: Array<{ addr: string; count: number }>;
+  ping_results?: string[];
 }
 
 export interface ParserMetricsSnapshot {

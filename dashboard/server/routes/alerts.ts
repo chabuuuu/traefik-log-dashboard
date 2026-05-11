@@ -16,7 +16,7 @@ import {
 } from '../alerts/repository';
 import { sendWebhookNotification } from '../alerts/notifications';
 import { AlertParameterConfig, AlertRule, AlertWebhook } from '../alerts/types';
-import { runAlertSchedulerCycle } from '../alerts/scheduler';
+import { runAlertRuleManually, runAlertSchedulerCycle } from '../alerts/scheduler';
 
 const router = Router();
 const ALERTS_API_KEY = process.env.ALERTS_API_KEY?.trim() || '';
@@ -179,14 +179,16 @@ function validateRulePayload(payload: unknown): ValidationResult<Omit<AlertRule,
 
   const parameters = normalizedParameters.value;
   const enabledParameters = parameters.filter((parameter) => parameter.enabled);
-  if (enabledParameters.length === 0) {
-    return { ok: false, error: 'At least one parameter must be enabled' };
+  const pingURLs = Array.isArray(parsed.ping_urls) ? parsed.ping_urls.filter((u): u is string => typeof u === 'string') : [];
+
+  if (enabledParameters.length === 0 && pingURLs.length === 0) {
+    return { ok: false, error: 'At least one parameter or ping URL must be enabled' };
   }
 
-  if (parsed.trigger_type === 'threshold') {
+  if (parsed.trigger_type === 'threshold' && pingURLs.length === 0) {
     const thresholdParameters = enabledParameters.filter((parameter) => typeof parameter.threshold === 'number');
     if (thresholdParameters.length === 0) {
-      return { ok: false, error: 'Threshold alerts require at least one threshold parameter' };
+      return { ok: false, error: 'Threshold alerts require at least one threshold parameter or ping URL' };
     }
   }
 
@@ -442,61 +444,12 @@ router.post('/rules/test', async (req: Request, res: Response) => {
     return;
   }
 
-  const rule = getAlertRuleByID(id);
-  if (!rule) {
-    res.status(404).json({ error: 'Alert rule not found' });
-    return;
+  try {
+    const result = await runAlertRuleManually(id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
-
-  const webhooks = rule.webhook_ids
-    .map((webhookID) => getAlertWebhookByID(webhookID))
-    .filter((webhook): webhook is AlertWebhook => Boolean(webhook && webhook.enabled));
-
-  if (webhooks.length === 0) {
-    res.status(400).json({ error: 'No enabled webhooks configured for this rule' });
-    return;
-  }
-
-  const agent = rule.agent_id ? getAgentById(rule.agent_id) : getAllAgents()[0];
-
-  const payload = {
-    alert_rule_id: rule.id,
-    alert_rule_name: rule.name,
-    trigger_type: 'test',
-    agent_id: agent?.id,
-    agent_name: agent?.name,
-    timestamp: new Date().toISOString(),
-    metrics: {
-      request_count: 120,
-      request_rate: 2.5,
-      error_rate: 1.2,
-      response_time: {
-        average: 135,
-        p95: 290,
-        p99: 490,
-      },
-    },
-  };
-
-  const results = await Promise.allSettled(
-    webhooks.map((webhook) => sendWebhookNotification({
-      webhook,
-      title: `[TEST] ${rule.name}`,
-      message: 'Test alert triggered from dashboard API.',
-      metadata: payload,
-    })),
-  );
-
-  const failed = results.filter(
-    (result) => result.status === 'fulfilled' && !result.value.success,
-  ).length;
-
-  if (failed > 0) {
-    res.status(502).json({ success: false, error: `${failed} webhook notifications failed` });
-    return;
-  }
-
-  res.json({ success: true });
 });
 
 router.get('/history', (req: Request, res: Response) => {

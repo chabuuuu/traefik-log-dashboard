@@ -202,6 +202,13 @@ export function buildAlertMessage(input: BuildAlertMessageInput): string {
     lines.push(`${key}: ${formatMetricValue(key, value)}`);
   }
 
+  if (Array.isArray(input.metrics.ping_results) && input.metrics.ping_results.length > 0) {
+    lines.push('\n🌐 Health Check Status');
+    for (const res of input.metrics.ping_results) {
+      lines.push(`❌ ${res}`);
+    }
+  }
+
   return lines.join('\n');
 }
 

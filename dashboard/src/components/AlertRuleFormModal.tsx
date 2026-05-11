@@ -254,8 +254,8 @@ export default function AlertRuleFormModal({
     }
 
     const enabledParams = formData.parameters.filter(p => p.enabled);
-    if (enabledParams.length === 0) {
-      newErrors.parameters = 'At least one parameter must be enabled';
+    if (enabledParams.length === 0 && formData.ping_urls.length === 0) {
+      newErrors.parameters = 'At least one parameter or ping URL must be provided';
     }
 
     if (
