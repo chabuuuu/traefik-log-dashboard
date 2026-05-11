@@ -15,6 +15,8 @@ interface AgentRequestInput {
 interface AccessLogsRequestInput extends AgentRequestInput {
   position?: number;
   lines?: number;
+  from?: string;
+  to?: string;
 }
 
 interface ErrorLogsRequestInput extends AgentRequestInput {
@@ -145,6 +147,8 @@ export class APIClient {
       position: String(input.position ?? 0),
       lines: String(input.lines ?? 1000),
     });
+    if (input.from) params.append('from', input.from);
+    if (input.to) params.append('to', input.to);
 
     return this.fetchJSON<LogsResponse>({
       endpoint: `/api/logs/access?${params}`,

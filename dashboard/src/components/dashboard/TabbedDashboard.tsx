@@ -169,7 +169,7 @@ export default function TabbedDashboard({
 
         <TabsContent value="logs" className="mt-6">
           <Suspense fallback={<SectionSkeleton />}>
-            <LogsSection logs={metrics.logs} errors={metrics.errors} />
+            <LogsSection logs={metrics.logs} errors={metrics.errors} agentId={agentId} />
           </Suspense>
         </TabsContent>
       </Tabs>

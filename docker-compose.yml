@@ -1,7 +1,7 @@
 services:
   # Traefik Log Dashboard Agent
   traefik-agent:
-    image: hhftechnology/traefik-log-dashboard-agent:dev-dashboard
+    image: haphuthinh/traefik-log-dashboard-agent:dev-dashboard
     container_name: traefik-log-dashboard-agent
     restart: unless-stopped
     ports:
@@ -36,7 +36,7 @@ services:
 
   # Traefik Log Dashboard - Node.js + Vite SPA
   traefik-dashboard:
-    image: hhftechnology/traefik-log-dashboard:dev-dashboard
+    image: haphuthinh/traefik-log-dashboard:dev-dashboard
     container_name: traefik-log-dashboard
     restart: unless-stopped
     ports:

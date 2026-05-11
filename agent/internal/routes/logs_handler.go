@@ -30,6 +30,25 @@ func (h *Handler) handleLogs(w http.ResponseWriter, r *http.Request, path string
 	position := utils.GetQueryParamInt64(r, "position", -2) // -2 means use tracked position
 	lines := utils.GetQueryParamInt(r, "lines", defaultLines)
 	tail := utils.GetQueryParamBool(r, "tail", false)
+	fromStr := utils.GetQueryParam(r, "from", "")
+	toStr := utils.GetQueryParam(r, "to", "")
+
+	if fromStr != "" || toStr != "" {
+		var fromTime, toTime time.Time
+		if fromStr != "" {
+			fromTime, _ = time.Parse(time.RFC3339, fromStr)
+		}
+		if toStr != "" {
+			toTime, _ = time.Parse(time.RFC3339, toStr)
+		}
+		result, err := logs.GetLogsByTimeRange(path, fromTime, toTime, lines)
+		if err != nil {
+			utils.RespondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		utils.RespondJSON(w, http.StatusOK, result)
+		return
+	}
 
 	fileInfo, err := os.Stat(path)
 	if err != nil {
