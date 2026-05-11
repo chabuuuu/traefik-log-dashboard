@@ -58,6 +58,7 @@ interface ProcessAgentRuleInput {
   windowEndISO: string;
   windowMs: number;
   windowStartISO: string;
+  failedUrls?: string[];
 }
 
 interface StartAlertSchedulerInput {
@@ -463,6 +464,10 @@ async function processRuleForAgent(input: ProcessAgentRuleInput): Promise<boolea
     parserRatios: undefined,
   });
 
+  if (input.failedUrls) {
+    aggregatedMetrics.ping_results = input.failedUrls;
+  }
+
   if (hasParserThresholdParameters(input.rule)) {
     try {
       const parserMetrics = await getCachedParserMetrics(input.context, input.agent);
@@ -541,6 +546,7 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
     return false;
   }
 
+  const failedUrls: string[] = [];
   let isPingDue = true;
   if (rule.trigger_type === 'interval') {
     isPingDue = isIntervalDue(rule, context.now.getTime());
@@ -552,7 +558,6 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
   // Handle active domain pinging
   if (rule.ping_urls && rule.ping_urls.length > 0 && isPingDue) {
     console.log(`[alerts] running ping health check for rule: ${rule.name} with ${rule.ping_urls.length} URLs`);
-    const failedUrls: string[] = [];
     for (const url of rule.ping_urls) {
       try {
         const controller = new AbortController();
@@ -652,6 +657,7 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
       windowEndISO,
       windowMs,
       windowStartISO,
+      failedUrls: failedUrls.length > 0 ? failedUrls : undefined,
     })),
   );
 
@@ -758,4 +764,131 @@ export function stopAlertScheduler(): void {
 
   clearInterval(schedulerTimer);
   schedulerTimer = null;
+}
+
+export async function runAlertRuleManually(ruleId: string): Promise<AlertSchedulerCycleResult> {
+  const rule = listAlertRules().find((r) => r.id === ruleId);
+  if (!rule) {
+    throw new Error('Rule not found');
+  }
+
+  const webhooks = listAlertWebhooks();
+  const webhooksByID = new Map(webhooks.map((w) => [w.id, w]));
+
+  const context: SchedulerExecutionContext = {
+    errors: [],
+    logCache: new Map(),
+    parserMetricsCache: new Map(),
+    now: new Date(),
+    webhooksByID,
+  };
+
+  const targetWebhooks = rule.webhook_ids
+    .map((webhookID) => context.webhooksByID.get(webhookID))
+    .filter((webhook): webhook is AlertWebhook => Boolean(webhook && webhook.enabled));
+
+  let triggeredRules = 0;
+
+  // Manual Ping Check
+  const failedUrls: string[] = [];
+  if (rule.ping_urls && rule.ping_urls.length > 0) {
+    for (const url of rule.ping_urls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+          failedUrls.push(`${url} (Status: ${res.status})`);
+        }
+      } catch (e) {
+        failedUrls.push(`${url} (Error: ${e instanceof Error ? e.message : String(e)})`);
+      }
+    }
+
+    if (failedUrls.length > 0) {
+      const payload = {
+        alert_rule_id: rule.id,
+        alert_rule_name: rule.name,
+        trigger_type: 'health_check_manual',
+        failed_urls: failedUrls,
+      };
+
+      const title = `🧪 [TEST] Service Down Alert: ${rule.name}`;
+      const message = `**The following services failed the health check:**\n\n` +
+                      failedUrls.map((u) => `❌ \`${u}\``).join('\n') +
+                      `\n\n_This is a manual test execution._`;
+
+      await Promise.allSettled(
+        targetWebhooks.map(async (webhook) => {
+          await sendWebhookNotification({
+            webhook,
+            title,
+            message,
+            metadata: payload,
+          });
+        }),
+      );
+      triggeredRules++;
+    }
+  }
+
+  const hasEnabledMetrics = rule.parameters && rule.parameters.some((p) => p.enabled);
+  if (hasEnabledMetrics) {
+    const targetAgents = getRuleTargetAgents(rule);
+    if (targetAgents.length > 0) {
+      const results = await Promise.all(
+        targetAgents.map(async (agent) => {
+          const windowMs = rule.snapshot_window_minutes * 60 * 1000;
+          const windowEndISO = context.now.toISOString();
+          const windowStartISO = new Date(context.now.getTime() - windowMs).toISOString();
+
+          let logs: AgentLogRecord[] = [];
+          try {
+            logs = await getCachedAgentLogs(context, agent, windowMs);
+          } catch (e) {
+            return false;
+          }
+
+          const metrics = buildAggregatedMetrics({
+            logs,
+            parameters: rule.parameters,
+            windowMs,
+          });
+
+          if (failedUrls.length > 0) {
+            metrics.ping_results = failedUrls;
+          }
+
+          const message = buildAlertMessage({
+            rule,
+            metrics,
+            agentName: agent.name,
+            windowEndISO,
+            windowStartISO,
+          });
+
+          await Promise.allSettled(
+            targetWebhooks.map(async (webhook) => {
+              await sendWebhookNotification({
+                webhook,
+                title: `🧪 [TEST] ${rule.name}`,
+                message,
+              });
+            }),
+          );
+          return true;
+        }),
+      );
+      if (results.some(r => r === true)) triggeredRules++;
+    }
+  }
+
+  return {
+    started: true,
+    skipped: false,
+    evaluatedRules: 1,
+    triggeredRules,
+    errors: context.errors,
+  };
 }

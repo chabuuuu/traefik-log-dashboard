@@ -16,7 +16,7 @@ import {
 } from '../alerts/repository';
 import { sendWebhookNotification } from '../alerts/notifications';
 import { AlertParameterConfig, AlertRule, AlertWebhook } from '../alerts/types';
-import { runAlertSchedulerCycle } from '../alerts/scheduler';
+import { runAlertRuleManually, runAlertSchedulerCycle } from '../alerts/scheduler';
 
 const router = Router();
 const ALERTS_API_KEY = process.env.ALERTS_API_KEY?.trim() || '';
@@ -442,41 +442,13 @@ router.post('/rules/test', async (req: Request, res: Response) => {
     return;
   }
 
-  const rule = getAlertRuleByID(id);
-  if (!rule) {
-    res.status(404).json({ error: 'Alert rule not found' });
-    return;
+  try {
+    const result = await runAlertRuleManually(id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
-
-  const webhooks = rule.webhook_ids
-    .map((webhookID) => getAlertWebhookByID(webhookID))
-    .filter((webhook): webhook is AlertWebhook => Boolean(webhook && webhook.enabled));
-
-  if (webhooks.length === 0) {
-    res.status(400).json({ error: 'No enabled webhooks configured for this rule' });
-    return;
-  }
-
-  const agent = rule.agent_id ? getAgentById(rule.agent_id) : getAllAgents()[0];
-
-  const payload = {
-    alert_rule_id: rule.id,
-    alert_rule_name: rule.name,
-    trigger_type: 'test',
-    agent_id: agent?.id,
-    agent_name: agent?.name,
-    timestamp: new Date().toISOString(),
-    metrics: {
-      request_count: 120,
-      request_rate: 2.5,
-      error_rate: 1.2,
-      response_time: {
-        average: 135,
-        p95: 290,
-        p99: 490,
-      },
-    },
-  };
+});
 
   const results = await Promise.allSettled(
     webhooks.map((webhook) => sendWebhookNotification({
