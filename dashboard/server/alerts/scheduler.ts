@@ -551,6 +551,7 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
 
   // Handle active domain pinging
   if (rule.ping_urls && rule.ping_urls.length > 0 && isPingDue) {
+    console.log(`[alerts] running ping health check for rule: ${rule.name} with ${rule.ping_urls.length} URLs`);
     const failedUrls: string[] = [];
     for (const url of rule.ping_urls) {
       try {
@@ -559,10 +560,14 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (!res.ok) {
+           console.log(`[alerts] ping failed for ${url} (Status: ${res.status})`);
            failedUrls.push(`${url} (Status: ${res.status})`);
+        } else {
+           console.log(`[alerts] ping success for ${url} (Status: ${res.status})`);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        console.log(`[alerts] ping error for ${url}: ${msg}`);
         failedUrls.push(`${url} (Error: ${msg})`);
       }
     }
@@ -606,7 +611,6 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
 
       markAlertRuleEvaluation({
         id: rule.id,
-        evaluatedAt: context.now.toISOString(),
         evaluatedAt: context.now.toISOString(),
         triggeredAt: context.now.toISOString(),
       });
