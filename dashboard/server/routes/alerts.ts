@@ -450,27 +450,6 @@ router.post('/rules/test', async (req: Request, res: Response) => {
   }
 });
 
-  const results = await Promise.allSettled(
-    webhooks.map((webhook) => sendWebhookNotification({
-      webhook,
-      title: `[TEST] ${rule.name}`,
-      message: 'Test alert triggered from dashboard API.',
-      metadata: payload,
-    })),
-  );
-
-  const failed = results.filter(
-    (result) => result.status === 'fulfilled' && !result.value.success,
-  ).length;
-
-  if (failed > 0) {
-    res.status(502).json({ success: false, error: `${failed} webhook notifications failed` });
-    return;
-  }
-
-  res.json({ success: true });
-});
-
 router.get('/history', (req: Request, res: Response) => {
   const requestedLimit = Number(req.query.limit ?? 100);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(500, requestedLimit)) : 100;
