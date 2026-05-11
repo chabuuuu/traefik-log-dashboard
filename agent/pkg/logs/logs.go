@@ -374,6 +374,62 @@ func GetRecentDirectoryLogs(dirPath string, since time.Time) (LogResult, error) 
 	}, nil
 }
 
+// GetLogsByTimeRange gets logs within a specific time range and limits the output
+func GetLogsByTimeRange(path string, from, to time.Time, limit int) (LogResult, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return LogResult{}, fmt.Errorf("path error: %w", err)
+	}
+
+	var allLogs []*TraefikLog
+
+	var processFile = func(filePath string) {
+		file, err := os.Open(filePath)
+		if err != nil { return }
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		buf := make([]byte, 64*1024)
+		scanner.Buffer(buf, 1024*1024)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line != "" {
+				parsed, err := ParseTraefikLog(line)
+				if err == nil && parsed != nil && !parsed.StartUTC.IsZero() {
+					if (!from.IsZero() && parsed.StartUTC.Before(from)) || (!to.IsZero() && parsed.StartUTC.After(to)) {
+						continue
+					}
+					allLogs = append(allLogs, parsed)
+				}
+			}
+		}
+	}
+
+	if fileInfo.IsDir() {
+		entries, err := os.ReadDir(path)
+		if err == nil {
+			var logFiles []string
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
+					logFiles = append(logFiles, entry.Name())
+				}
+			}
+			sort.Strings(logFiles)
+			for _, fileName := range logFiles {
+				processFile(filepath.Join(path, fileName))
+			}
+		}
+	} else {
+		processFile(path)
+	}
+
+	if limit > 0 && len(allLogs) > limit {
+		allLogs = allLogs[len(allLogs)-limit:]
+	}
+
+	return LogResult{Logs: allLogs, Positions: []Position{}}, nil
+}
+
+
 func readErrorLogDirectly(filePath string, position int64) (LogResult, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {

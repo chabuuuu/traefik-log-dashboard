@@ -12,7 +12,7 @@ import {
   type VisibilityState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -29,6 +29,13 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
@@ -58,6 +65,7 @@ export function DataTable<TData>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
     defaultColumnVisibility || {}
   );
+  const [tableMaxHeight, setTableMaxHeight] = useState<string>(maxHeight);
 
   const table = useReactTable({
     data,
@@ -69,6 +77,7 @@ export function DataTable<TData>({
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    columnResizeMode: 'onChange',
   });
 
   const { rows } = table.getRowModel();
@@ -121,6 +130,17 @@ export function DataTable<TData>({
               ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <Select value={tableMaxHeight} onValueChange={setTableMaxHeight}>
+          <SelectTrigger className="w-[110px] h-9">
+            <SelectValue placeholder="Height" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="300px">Short</SelectItem>
+            <SelectItem value="500px">Medium</SelectItem>
+            <SelectItem value="800px">Tall</SelectItem>
+            <SelectItem value="10000px">Full</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -134,12 +154,27 @@ export function DataTable<TData>({
                   {headerGroup.headers.map((header) => (
                     <div
                       key={header.id}
-                      className="px-2 h-10 flex items-center text-sm font-medium text-muted-foreground"
+                      className="px-2 h-10 flex items-center justify-between text-sm font-medium text-muted-foreground relative group select-none cursor-pointer"
                       style={{ width: header.getSize() }}
+                      onClick={header.column.getToggleSortingHandler()}
                     >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
+                      <div className="flex items-center gap-1 overflow-hidden">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {{
+                          asc: <ArrowUp className="h-3 w-3 ml-1 shrink-0" />,
+                          desc: <ArrowDown className="h-3 w-3 ml-1 shrink-0" />,
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </div>
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none bg-border opacity-0 group-hover:opacity-100 ${
+                          header.column.getIsResizing() ? 'bg-primary opacity-100' : ''
+                        }`}
+                      />
                     </div>
                   ))}
                 </div>
@@ -147,7 +182,7 @@ export function DataTable<TData>({
             </div>
             <div
               ref={parentRef}
-              style={{ maxHeight, overflow: 'auto' }}
+              style={{ maxHeight: tableMaxHeight, overflow: 'auto' }}
             >
               <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
                 {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -185,10 +220,24 @@ export function DataTable<TData>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    <TableHead key={header.id} style={{ width: header.getSize() }} className="relative group select-none cursor-pointer" onClick={header.column.getToggleSortingHandler()}>
+                      <div className="flex items-center gap-1">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {{
+                          asc: <ArrowUp className="h-3 w-3 ml-1" />,
+                          desc: <ArrowDown className="h-3 w-3 ml-1" />,
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </div>
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none bg-border opacity-0 group-hover:opacity-100 ${
+                          header.column.getIsResizing() ? 'bg-primary opacity-100' : ''
+                        }`}
+                      />
                     </TableHead>
                   ))}
                 </TableRow>
