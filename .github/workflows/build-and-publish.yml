@@ -68,7 +68,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard-agent
-            docker.io/hhftechnology/traefik-log-dashboard-agent
+            docker.io/haphuthinh/traefik-log-dashboard-agent
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -170,7 +170,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard
-            docker.io/hhftechnology/traefik-log-dashboard
+            docker.io/haphuthinh/traefik-log-dashboard
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -430,11 +430,11 @@ jobs:
           ## 🐳 Docker Images
           
           ### Agent
-          - \`docker pull hhftechnology/traefik-log-dashboard-agent:${VERSION}\`
+          - \`docker pull haphuthinh/traefik-log-dashboard-agent:${VERSION}\`
           - \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard-agent:${VERSION}\`
           
           ### Dashboard
-          - \`docker pull hhftechnology/traefik-log-dashboard:${VERSION}\`
+          - \`docker pull haphuthinh/traefik-log-dashboard:${VERSION}\`
           - \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard:${VERSION}\`
           
           ## 💻 CLI Binaries
@@ -462,7 +462,7 @@ jobs:
           \`\`\`yaml
           services:
             traefik-agent:
-              image: hhftechnology/traefik-log-dashboard-agent:${VERSION}
+              image: haphuthinh/traefik-log-dashboard-agent:${VERSION}
               container_name: traefik-log-dashboard-agent
               restart: unless-stopped
               volumes:
@@ -486,7 +486,7 @@ jobs:
                 - "5000:5000"
           
             traefik-dashboard:
-              image: hhftechnology/traefik-log-dashboard:${VERSION}
+              image: haphuthinh/traefik-log-dashboard:${VERSION}
               container_name: traefik-log-dashboard
               restart: unless-stopped
               volumes:
@@ -551,8 +551,8 @@ jobs:
             echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "#### Docker Hub" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard-agent:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`docker pull haphuthinh/traefik-log-dashboard-agent:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`docker pull haphuthinh/traefik-log-dashboard:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "#### GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
             echo "- \`docker pull ghcr.io/${{ github.repository_owner }}/traefik-log-dashboard-agent:${VERSION}\`" >> $GITHUB_STEP_SUMMARY
@@ -562,8 +562,8 @@ jobs:
             echo "**SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "#### Latest Images" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard-agent:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`docker pull hhftechnology/traefik-log-dashboard:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`docker pull haphuthinh/traefik-log-dashboard-agent:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`docker pull haphuthinh/traefik-log-dashboard:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -577,8 +577,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-          echo "- [Docker Hub - Agent](https://hub.docker.com/r/hhftechnology/traefik-log-dashboard-agent)" >> $GITHUB_STEP_SUMMARY
-          echo "- [Docker Hub - Dashboard](https://hub.docker.com/r/hhftechnology/traefik-log-dashboard)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Docker Hub - Agent](https://hub.docker.com/r/haphuthinh/traefik-log-dashboard-agent)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Docker Hub - Dashboard](https://hub.docker.com/r/haphuthinh/traefik-log-dashboard)" >> $GITHUB_STEP_SUMMARY
           echo "- [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/container)" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             echo "- [Release Page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
