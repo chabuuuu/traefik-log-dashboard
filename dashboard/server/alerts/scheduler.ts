@@ -90,6 +90,7 @@ export interface AlertSchedulerCycleResult {
 let schedulerTimer: NodeJS.Timeout | null = null;
 let cycleInProgress = false;
 const parserCounterBaselineByAgent = new Map<string, ParserCounterTotals>();
+const pingBreachStateByRule = new Map<string, boolean>();
 
 function normalizeAgentURL(agent: DBAgent): string {
   return (agent.configured_url || agent.url).replace(/\/+$/, '');
@@ -540,12 +541,16 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
     return false;
   }
 
-  // Handle active domain pinging
-  if (rule.ping_urls && rule.ping_urls.length > 0) {
-    if (!isIntervalDue(rule, context.now.getTime())) {
-      return false;
-    }
+  let isPingDue = true;
+  if (rule.trigger_type === 'interval') {
+    isPingDue = isIntervalDue(rule, context.now.getTime());
+  } else {
+    const lastEval = rule.last_evaluated_at ? new Date(rule.last_evaluated_at).getTime() : 0;
+    isPingDue = context.now.getTime() - lastEval >= 5 * 60 * 1000 - 30_000;
+  }
 
+  // Handle active domain pinging
+  if (rule.ping_urls && rule.ping_urls.length > 0 && isPingDue) {
     const failedUrls: string[] = [];
     for (const url of rule.ping_urls) {
       try {
@@ -563,14 +568,9 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
     }
 
     const breached = failedUrls.length > 0;
-    const wasBreached = getAlertThresholdBreached(rule.id, 'dashboard-ping');
+    const wasBreached = pingBreachStateByRule.get(rule.id) || false;
 
-    upsertAlertThresholdState({
-      ruleID: rule.id,
-      agentID: 'dashboard-ping',
-      breached,
-      updatedAt: context.now.toISOString(),
-    });
+    pingBreachStateByRule.set(rule.id, breached);
 
     if (breached && !wasBreached) {
       const payload = {
@@ -607,16 +607,15 @@ async function processRule(rule: AlertRule, context: SchedulerExecutionContext):
       markAlertRuleEvaluation({
         id: rule.id,
         evaluatedAt: context.now.toISOString(),
+        evaluatedAt: context.now.toISOString(),
         triggeredAt: context.now.toISOString(),
       });
-      return true;
+    } else {
+      markAlertRuleEvaluation({
+        id: rule.id,
+        evaluatedAt: context.now.toISOString(),
+      });
     }
-
-    markAlertRuleEvaluation({
-      id: rule.id,
-      evaluatedAt: context.now.toISOString(),
-    });
-    return false;
   }
 
   const targetAgents = getRuleTargetAgents(rule);
